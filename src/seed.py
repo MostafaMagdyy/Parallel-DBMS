@@ -87,7 +87,7 @@ def main():
                 {'name': 'hire_date', 'type': 'D'},
                 {'name': 'department_id', 'type': 'N'}
             ],
-            'num_rows': 1000
+            'num_rows': 3000000
         },
         {
             'name': 'departments',
