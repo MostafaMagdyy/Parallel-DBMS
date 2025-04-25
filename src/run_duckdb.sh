@@ -2,8 +2,13 @@
 export PATH=/usr/local/cuda/bin:$PATH
 DUCKDB_INCLUDE="./duckdb/src/include"
 DUCKDB_LIB="./duckdb/build/release/src" 
-nvcc -std=c++17 -o test_duckdb sql_parser.cpp -I$DUCKDB_INCLUDE -L$DUCKDB_LIB -lduckdb -Xlinker -rpath=$DUCKDB_LIB
-
+nvcc -std=c++17 -o test_duckdb \
+  sql_parser.cpp \
+  headers/column.cpp \
+  headers/table.cpp \
+  -I$DUCKDB_INCLUDE -I. \
+  -L$DUCKDB_LIB -lduckdb \
+  -Xlinker -rpath=$DUCKDB_LIB
 # Check if compilation was successful
 if [ $? -ne 0 ]; then
     echo "Compilation failed!"
