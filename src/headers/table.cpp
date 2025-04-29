@@ -42,6 +42,36 @@ Table::Table(const std::string &name, const std::vector<ColumnMetadata> &columns
         column_map[columns[i].name] = i;
     }
 }
+std::chrono::system_clock::time_point Table::parseDate(const std::string &dateStr) const
+{
+    // Handle empty or null values
+    if (dateStr.empty() || dateStr == "NULL")
+    {
+        throw std::runtime_error("Invalid date format: " + dateStr +
+                                 " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
+    }
+
+    std::tm tm = {};
+    if (dateStr.length() >= 10)
+    { // yyyy-MM-dd
+        if (sscanf(dateStr.c_str(), "%d-%d-%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday) == 3)
+        {
+            tm.tm_year -= 1900; // Adjust year (tm_year is years since 1900)
+            tm.tm_mon -= 1;     // Adjust month (tm_mon is 0-11)
+
+            if (dateStr.length() >= 19)
+            { // yyyy-MM-dd HH:mm:ss
+                sscanf(dateStr.c_str() + 11, "%d:%d:%d", &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+            }
+            std::time_t time = std::mktime(&tm);
+            return std::chrono::system_clock::from_time_t(time);
+        }
+    }
+
+    // If parsing fails, throw an exception
+    throw std::runtime_error("Invalid date format: " + dateStr +
+                             " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
+}
 
 bool Table::readNextBatch()
 {
@@ -94,111 +124,95 @@ bool Table::readNextBatch()
             }
         }
 
-        // Read batch_size rows or until EOF
         std::string line;
         size_t rows_read = 0;
-        size_t line_number = current_row + 1; // For error reporting
-
-        std::cout << "Starting to read batch of up to " << batch_size << " rows" << std::endl;
-
+        std::cout << "Reading batch of " << batch_size << " rows" << std::endl;
         while (rows_read < batch_size && std::getline(file, line))
         {
-            // Parse the CSV line
+            if (line.empty())
+            {
+                continue;
+            }
+            std::vector<std::string> fields;
             std::stringstream ss(line);
             std::string field;
-            size_t col_idx = 0;
 
-            try
+            // This needs to be optimized
+            // no need for this getline again
+            // maybe we pass the whole line to pass filters
+            // Split the line into fields on the go while checking filters
+            // There is no way to do this now
+            while (std::getline(ss, field, ','))
             {
-                while (std::getline(ss, field, ',') && col_idx < columns.size())
+                fields.push_back(field);
+            }
+            if (!passesFilters(fields))
+            {
+                continue;
+            }
+
+            // Process each column
+            for (size_t col_idx = 0; col_idx < columns.size() && col_idx < fields.size(); col_idx++)
+            {
+                const std::string &field = fields[col_idx];
+
+                switch (columns[col_idx].type)
                 {
-                    // Process the field based on column type
+                case ColumnType::DOUBLE:
                     try
                     {
-                        switch (columns[col_idx].type)
-                        {
-                        case ColumnType::DOUBLE:
-                            try
-                            {
-                                double val = std::stod(field);
-                                current_batch[col_idx]->addDouble(val);
-                            }
-                            catch (std::exception &e)
-                            {
-                                // Handle conversion error
-
-                                std::cerr << "[ERROR] Line " << line_number
-                                          << ", Column '" << columns[col_idx].name
-                                          << "': Cannot convert '" << field
-                                          << "' to double: " << e.what() << std::endl;
-                            }
-                            break;
-
-                        case ColumnType::STRING:
-                            current_batch[col_idx]->addString(field);
-                            break;
-
-                        case ColumnType::DATE:
-                            // Simple date parsing logic - would need more robust parsing in practice
-                            try
-                            {
-                                // Just store current time as placeholder
-                                current_batch[col_idx]->addDate(std::chrono::system_clock::now());
-                            }
-                            catch (std::exception &e)
-                            {
-                                std::cerr << "[ERROR] Line " << line_number
-                                          << ", Column '" << columns[col_idx].name
-                                          << "': Cannot parse date '" << field
-                                          << "': " << e.what() << std::endl;
-                            }
-                            break;
-
-                        default:
-                            std::cerr << "[ERROR] Line " << line_number
-                                      << ", Column '" << columns[col_idx].name
-                                      << "': Unknown column type" << std::endl;
-
-                            break;
-                        }
+                        current_batch[col_idx]->addDouble(std::stod(field));
                     }
-                    catch (std::exception &e)
+                    catch (const std::exception &e)
                     {
-                        std::cerr << "[ERROR] Line " << line_number
+                        std::cerr << "[ERROR] Line "
                                   << ", Column '" << columns[col_idx].name
-                                  << "': Exception during processing: " << e.what() << std::endl;
+                                  << "': Cannot convert '" << field
+                                  << "' to double: " << e.what() << std::endl;
                     }
+                    break;
 
-                    col_idx++;
+                case ColumnType::STRING:
+                    current_batch[col_idx]->addString(field);
+                    break;
+
+                case ColumnType::DATE:
+                    try
+                    {
+                        current_batch[col_idx]->addDate(parseDate(field));
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "[ERROR] Line "
+                                  << ", Column '" << columns[col_idx].name
+                                  << "': Cannot parse date '" << field
+                                  << "': " << e.what() << std::endl;
+                        current_batch[col_idx]->addDate(std::chrono::system_clock::now());
+                    }
+                    break;
+
+                default:
+                    break;
                 }
-            }
-            catch (std::exception &e)
-            {
-                std::cerr << "[ERROR] Exception processing line " << line_number
-                          << ": " << e.what() << std::endl;
             }
 
             rows_read++;
-            line_number++;
         }
         last_file_pos = file.tellg();
-
-        // Update state
         current_row += rows_read;
-        std::cout << "Read " << rows_read << " rows from file" << std::endl;
-        has_more_data = (rows_read == batch_size);
-        std::cout << "Has more data: " << has_more_data << std::endl;
-
-        // Profile memory after loading
+        has_more_data = !file.eof();
         size_t memory_after = getCurrentRSS();
         size_t memory_used = memory_after - memory_before;
         auto total_end_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> total_duration = total_end_time - total_start_time;
-        std::cout << "Batch read time: " << total_duration.count() << " ms" << std::endl;
-        std::cout << "Batch read complete: " << rows_read << " rows read" << std::endl;
-        std::cout << "Memory usage after batch loading: " << formatMemorySize(memory_after) << std::endl;
-        std::cout << "Memory increase for this batch: " << formatMemorySize(memory_used) << std::endl;
 
+        // Debug output
+        // This is the rows returned from this batch (ideally should be batch size)
+        // Should add another var to track total rows read(during to applying filters)
+        std::cout << "Read " << rows_read << " rows from file" << std::endl;
+        std::cout << "Has more data: " << has_more_data << std::endl;
+        std::chrono::duration<double> total_duration = total_end_time - total_start_time;
+        std::cout << "Batch read time: " << total_duration.count() << " seconds" << std::endl;
+        std::cout << "Memory increase for this batch: " << formatMemorySize(memory_used) << std::endl;
         return rows_read > 0;
     }
     catch (std::exception &e)
@@ -265,7 +279,6 @@ void Table::printCurrentBatch(size_t max_rows, size_t max_string_length) const
     }
 
     std::cout << separator << "\n";
-    std::cout << "Memory usage for this batch: " << formatMemorySize(getCurrentRSS()) << "\n";
 }
 
 // Helper method to print a range of rows
@@ -364,4 +377,71 @@ bool Table::transferBatchToGPU()
         success &= col_batch->transferToGPU();
     }
     return success;
+}
+bool Table::passesFilters(const std::vector<std::string> &row_values) const
+{
+    if (filters.empty())
+    {
+        return true;
+    }
+
+    for (const auto &filter : filters)
+    {
+        auto it = column_map.find(filter.getColumnName());
+        if (it == column_map.end() || it->second >= row_values.size())
+        {
+            continue;
+        }
+        size_t col_idx = it->second;
+        const std::string &field = row_values[col_idx];
+        FilterCondition::FilterValue row_value;
+        try
+        {
+            switch (columns[col_idx].type)
+            {
+            case ColumnType::DOUBLE:
+                row_value = std::stod(field);
+                break;
+
+            case ColumnType::STRING:
+                row_value = field;
+                break;
+
+            case ColumnType::DATE:
+                row_value = parseDate(field);
+                break;
+
+            default:
+                continue; // Skip
+            }
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "[ERROR] "
+                      << ", Column '" << columns[col_idx].name
+                      << "': Cannot convert '" << field
+                      << "' to appropriate type: " << e.what() << std::endl;
+            continue; // Skip this filter check on error
+        }
+        if (!filter.evaluate(row_value))
+            return false;
+    }
+
+    // All filters passed
+    return true;
+}
+
+void Table::addFilter(const FilterCondition &condition)
+{
+    filters.push_back(condition);
+}
+
+void Table::addFilters(const std::vector<FilterCondition> &conditions)
+{
+    filters.insert(filters.end(), conditions.begin(), conditions.end());
+}
+
+void Table::clearFilters()
+{
+    filters.clear();
 }

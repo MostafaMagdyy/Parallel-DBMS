@@ -4,15 +4,18 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 #include <fstream>
 #include <memory>
+#include <vector>
+#include <algorithm>
 #include <unordered_map>
-#include "column.h" // Include the column header
+#include "column.h" 
 
-// Forward declaration of DuckDBManager
 class DuckDBManager;
 
-// Class for a table
 class Table
 {
 private:
@@ -27,35 +30,35 @@ private:
     size_t current_row;                                      // Current row in the file
     bool has_more_data;                                      // Flag to indicate if there's more data to read
     std::vector<std::unique_ptr<ColumnBatch>> current_batch; // Current batch of data
+    // maybe we need to add vector of gpu pointers
+    std::vector<FilterCondition> filters;
+    void printRows(size_t start_row, size_t end_row, size_t max_string_length) const;
+
+
 
 public:
     Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
           const std::string &file_path, size_t batch_size = 10000);
+    bool passesFilters(const std::vector<std::string>& row_values) const;
+    const std::vector<FilterCondition>& getFilters() const { return filters; }
+    void addFilter(const FilterCondition& condition);
+    void addFilters(const std::vector<FilterCondition>& conditions);
+    void clearFilters();
+
 
     bool readNextBatch();
-    void printCurrentBatch(size_t max_rows = 5, size_t max_string_length = 30) const;
-
-private:
-    // Helper method to print a range of rows
-    void printRows(size_t start_row, size_t end_row, size_t max_string_length) const;
-
-public:
+    void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30) const;
     // Accessors
     const std::string &getName() const { return name; }
     const std::vector<ColumnMetadata> &getColumns() const { return columns; }
     size_t getColumnCount() const { return columns.size(); }
     bool hasMoreData() const { return has_more_data; }
     size_t getCurrentBatchSize() const;
-
-    // Column access by name
+    std::chrono::system_clock::time_point parseDate(const std::string& dateStr) const;
     ColumnBatch *getColumnBatch(const std::string &column_name);
-
-    // Column access by index
     ColumnBatch *getColumnBatch(size_t column_index);
-
-    // GPU operations
     bool transferBatchToGPU();
     friend class DuckDBManager;
 };
 
-#endif // TABLE_H
+#endif

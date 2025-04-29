@@ -15,212 +15,13 @@
 #include <duckdb/planner/operator/logical_order.hpp>
 #include <duckdb/catalog/catalog_entry/table_catalog_entry.hpp>
 #include <duckdb/planner/operator/logical_comparison_join.hpp>
+#include <duckdb/planner/filter/constant_filter.hpp>
 #include <chrono>
 #include <sys/resource.h>
 #include "headers/column.h"
 #include "headers/table.h"
 using namespace duckdb;
-namespace fs = std::filesystem; // Function to traverse get table names from logical operators
-void getTableNames(LogicalOperator *op, std::vector<std::string> &table_names)
-{
-    if (!op)
-        return;
-
-    if (op->type == LogicalOperatorType::LOGICAL_GET)
-    {
-        auto get = reinterpret_cast<LogicalGet *>(op);
-        if (auto table = get->GetTable())
-        {
-            table_names.push_back(table->name);
-        }
-        else if (!get->function.name.empty())
-        {
-            table_names.push_back(get->function.name);
-        }
-    }
-
-    // Recursively check children
-    for (auto &child : op->children)
-    {
-        getTableNames(child.get(), table_names);
-    }
-}
-// Function to traverse the logical operator tree
-void traverseLogicalOperator(LogicalOperator *op, int depth = 0)
-{
-    if (!op)
-        return;
-
-    // Print indentation based on depth
-    std::string indent(depth * 2, ' ');
-
-    // Print information about the current operator
-    std::cout << indent << "Operator Type: " << op->GetName() << std::endl;
-
-    // Print operator-specific information
-    switch (op->type)
-    {
-    case LogicalOperatorType::LOGICAL_PROJECTION:
-    {
-        auto projection = reinterpret_cast<LogicalProjection *>(op);
-        std::cout << indent << "Expressions: ";
-        for (size_t i = 0; i < projection->expressions.size(); i++)
-        {
-            if (i > 0)
-                std::cout << ", ";
-            std::cout << projection->expressions[i]->ToString();
-        }
-        std::cout << std::endl;
-        break;
-    }
-    case LogicalOperatorType::LOGICAL_FILTER:
-    {
-        auto filter = reinterpret_cast<LogicalFilter *>(op);
-        std::cout << indent << "Filter Expressions: ";
-        for (size_t i = 0; i < filter->expressions.size(); i++)
-        {
-            if (i > 0)
-                std::cout << ", ";
-            std::cout << filter->expressions[i]->ToString();
-        }
-        std::cout << std::endl;
-        break;
-    }
-    case LogicalOperatorType::LOGICAL_GET:
-    {
-        auto get = reinterpret_cast<LogicalGet *>(op);
-        // Use GetTable() to get table information if available
-        if (auto table = get->GetTable())
-        {
-            std::cout << indent << "Table: " << table->name << std::endl;
-        }
-        else
-        {
-            std::cout << indent << "Table: " << "(Function Scan)" << std::endl;
-        }
-        // Print returned column names
-        if (!get->table_filters.filters.empty())
-        {
-            std::cout << indent << "Pushed-down Filters:" << std::endl;
-            for (auto &kv : get->table_filters.filters)
-            {
-                auto &column_index = kv.first;
-                auto &filter = kv.second;
-                // Get the column name if available
-                string column_name;
-                if (column_index < get->names.size())
-                {
-                    column_name = get->names[column_index];
-                }
-                else
-                {
-                    column_name = "col_" + std::to_string(column_index);
-                }
-                // Use the filter's ToString method with the column name
-                std::cout << indent << "  " << filter->ToString(column_name) << std::endl;
-            }
-        }
-        std::cout << std::endl;
-        break;
-    }
-    case LogicalOperatorType::LOGICAL_COMPARISON_JOIN:
-    {
-        auto join = reinterpret_cast<LogicalComparisonJoin *>(op);
-        std::cout << indent << "Join Type: " << JoinTypeToString(join->join_type) << std::endl;
-
-        // Print join conditions if available
-        if (!join->conditions.empty())
-        {
-            std::cout << indent << "Join Conditions: ";
-            for (size_t i = 0; i < join->conditions.size(); i++)
-            {
-                if (i > 0)
-                    std::cout << ", ";
-                std::cout << join->conditions[i].left->ToString() << " "
-                          << ExpressionTypeToOperator(join->conditions[i].comparison) << " "
-                          << join->conditions[i].right->ToString();
-            }
-            std::cout << std::endl;
-        }
-        else if (!join->expressions.empty())
-        {
-            // Some joins might still use expressions for conditions
-            std::cout << indent << "Join Expressions: ";
-            for (size_t i = 0; i < join->expressions.size(); i++)
-            {
-                if (i > 0)
-                    std::cout << ", ";
-                std::cout << join->expressions[i]->ToString();
-            }
-            std::cout << std::endl;
-        }
-
-        std::unordered_set<idx_t> left_bindings;
-        std::unordered_set<idx_t> right_bindings;
-
-        if (!join->children.empty() && join->children.size() >= 2)
-        {
-
-            // Additionally, get the actual table names
-            std::vector<std::string> left_tables;
-            std::vector<std::string> right_tables;
-
-            getTableNames(join->children[0].get(), left_tables);
-            getTableNames(join->children[1].get(), right_tables);
-
-            std::cout << indent << "Left Tables: ";
-            for (size_t i = 0; i < left_tables.size(); i++)
-            {
-                if (i > 0)
-                    std::cout << ", ";
-                std::cout << left_tables[i];
-            }
-            std::cout << std::endl;
-
-            std::cout << indent << "Right Tables: ";
-            for (size_t i = 0; i < right_tables.size(); i++)
-            {
-                if (i > 0)
-                    std::cout << ", ";
-                std::cout << right_tables[i];
-            }
-            std::cout << std::endl;
-        }
-
-        // Print predicate if available (your existing code)
-        if (join->predicate)
-        {
-            std::cout << indent << "Additional Predicate: " << join->predicate->ToString() << std::endl;
-        }
-
-        break;
-    }
-    case LogicalOperatorType::LOGICAL_ORDER_BY:
-    {
-        auto order = reinterpret_cast<LogicalOrder *>(op);
-        std::cout << indent << "Order By: ";
-        for (size_t i = 0; i < order->orders.size(); i++)
-        {
-            if (i > 0)
-                std::cout << ", ";
-            std::cout << order->orders[i].expression->ToString() << " "
-                      << (order->orders[i].type == OrderType::ASCENDING ? "ASC" : "DESC");
-        }
-        std::cout << std::endl;
-        break;
-    }
-    default:
-        break;
-    }
-
-    std::cout << indent << "------------------------" << std::endl;
-
-    // Recursively traverse child nodes
-    for (auto &child : op->children)
-    {
-        traverseLogicalOperator(child.get(), depth + 1);
-    }
-}
+namespace fs = std::filesystem;
 // Class to manage DuckDB operations
 class DuckDBManager
 {
@@ -239,7 +40,7 @@ public:
         DuckDBManager manager;
         manager.db = std::make_unique<DuckDB>(nullptr);
         manager.con = std::make_unique<Connection>(*manager.db);
-        manager.con->Query("SET disabled_optimizers = 'statistics_propagation, filter_pushdown';");
+        manager.con->Query("SET disabled_optimizers = 'statistics_propagation';");
         manager.default_batch_size = 1000000; // Default batch size
         return manager;
     }
@@ -272,7 +73,6 @@ public:
         std::string token;
         std::vector<ColumnMetadata> columns;
         size_t index = 0;
-        size_t byte_offset = 0;
 
         while (std::getline(ss, token, ','))
         {
@@ -291,7 +91,6 @@ public:
             std::string duckdb_type;
             bool is_primary_key = false;
             ColumnType col_type = ColumnType::UNKNOWN;
-            size_t element_size = 0;
 
             size_t pos = 0;
             while ((pos = token.find('(', pos)) != std::string::npos)
@@ -307,24 +106,20 @@ public:
                 part.erase(0, part.find_first_not_of(" \t"));
                 part.erase(part.find_last_not_of(" \t") + 1);
 
-                // Determine what this part represents
                 if (part == "T")
                 {
                     duckdb_type = "VARCHAR";
                     col_type = ColumnType::STRING;
-                    element_size = 0; // Variable size
                 }
                 else if (part == "N")
                 {
                     duckdb_type = "DOUBLE";
                     col_type = ColumnType::DOUBLE;
-                    element_size = sizeof(double);
                 }
                 else if (part == "D")
                 {
                     duckdb_type = "TIMESTAMP";
                     col_type = ColumnType::DATE;
-                    element_size = sizeof(int64_t); // Store as epoch timestamp
                 }
                 else if (part == "P")
                 {
@@ -350,13 +145,9 @@ public:
                 col_type,       // type (enum)
                 duckdb_type,    // duckdb_type
                 is_primary_key, // is_primary_key
-                index,          // index
-                byte_offset,    // byte_offset
-                element_size    // element_size
+                index           // index
                 ));
 
-            // Update byte offset and index for next column
-            byte_offset += (element_size > 0) ? element_size : sizeof(void *); // For variable-sized types, store pointers
             index++;
         }
 
@@ -470,6 +261,282 @@ public:
         return false;
     }
 };
+void getTableNames(LogicalOperator *op, std::vector<std::string> &table_names)
+{
+    if (!op)
+        return;
+
+    if (op->type == LogicalOperatorType::LOGICAL_GET)
+    {
+        auto get = reinterpret_cast<LogicalGet *>(op);
+        if (auto table = get->GetTable())
+        {
+            table_names.push_back(table->name);
+        }
+        else if (!get->function.name.empty())
+        {
+            table_names.push_back(get->function.name);
+        }
+    }
+
+    // Recursively check children
+    for (auto &child : op->children)
+    {
+        getTableNames(child.get(), table_names);
+    }
+}
+void traverseLogicalOperator(DuckDBManager &manager, LogicalOperator *op, int depth = 0)
+{
+    if (!op)
+        return;
+
+    // Print indentation based on depth
+    std::string indent(depth * 2, ' ');
+
+    // Print information about the current operator
+    std::cout << indent << "Operator Type: " << op->GetName() << std::endl;
+
+    // Print operator-specific information
+    switch (op->type)
+    {
+    case LogicalOperatorType::LOGICAL_PROJECTION:
+    {
+        auto projection = reinterpret_cast<LogicalProjection *>(op);
+        std::cout << indent << "Expressions: ";
+        for (size_t i = 0; i < projection->expressions.size(); i++)
+        {
+            if (i > 0)
+                std::cout << ", ";
+            std::cout << projection->expressions[i]->ToString();
+        }
+        std::cout << std::endl;
+        break;
+    }
+    case LogicalOperatorType::LOGICAL_FILTER:
+    {
+        auto filter = reinterpret_cast<LogicalFilter *>(op);
+        std::cout << indent << "Filter Expressions: ";
+        for (size_t i = 0; i < filter->expressions.size(); i++)
+        {
+            if (i > 0)
+                std::cout << ", ";
+            std::cout << filter->expressions[i]->ToString();
+        }
+        std::cout << std::endl;
+        break;
+    }
+    case LogicalOperatorType::LOGICAL_GET:
+    {
+        auto get = reinterpret_cast<LogicalGet *>(op);
+        auto table_entry = get->GetTable();
+
+        if (!table_entry)
+            return;
+
+        auto table = manager.getTable(table_entry->name);
+        if (!table)
+            return;
+        table->clearFilters(); // maybe we need to change it
+        if (!get->table_filters.filters.empty())
+        {
+            std::vector<FilterCondition> filter_conditions;
+
+            for (auto &kv : get->table_filters.filters)
+            {
+                auto &column_index = kv.first;
+                auto &filter = kv.second;
+
+                // Get column name
+                std::string column_name;
+                if (column_index < get->names.size())
+                {
+                    column_name = get->names[column_index];
+                }
+                else
+                {
+                    continue; // Skip if we can't find the column name
+                }
+
+                switch (filter->filter_type)
+                {
+                case TableFilterType::CONSTANT_COMPARISON:
+                {
+                    auto comparison = reinterpret_cast<duckdb::ConstantFilter *>(filter.get());
+
+                    // Map DuckDB comparison type to filter operator enum
+                    FilterOperator op;
+                    switch (comparison->comparison_type)
+                    {
+                    case ExpressionType::COMPARE_EQUAL:
+                        op = FilterOperator::EQUALS;
+                        break;
+                    case ExpressionType::COMPARE_NOTEQUAL:
+                        op = FilterOperator::NOT_EQUALS;
+                        break;
+                    case ExpressionType::COMPARE_LESSTHAN:
+                        op = FilterOperator::LESS_THAN;
+                        break;
+                    case ExpressionType::COMPARE_LESSTHANOREQUALTO:
+                        op = FilterOperator::LESS_THAN_EQUALS;
+                        break;
+                    case ExpressionType::COMPARE_GREATERTHAN:
+                        op = FilterOperator::GREATER_THAN;
+                        break;
+                    case ExpressionType::COMPARE_GREATERTHANOREQUALTO:
+                        op = FilterOperator::GREATER_THAN_EQUALS;
+                        break;
+                    default:
+                        std::cerr << "Unsupported comparison type: " << std::endl;
+                        continue;
+                    }
+
+                    // Convert value based on column type
+                    const auto &target_col = table->getColumns()[column_index];
+                    FilterCondition::FilterValue filter_value;
+
+                    // Convert the DuckDB Value to our filter value
+                    switch (target_col.type)
+                    {
+                    case ColumnType::DOUBLE:
+                        filter_value = comparison->constant.GetValue<double>();
+                        break;
+                    case ColumnType::STRING:
+                        filter_value = comparison->constant.GetValue<std::string>();
+                        break;
+                    case ColumnType::DATE:
+                        try
+                        {
+                            auto timestamp_str = comparison->constant.ToString();
+                            filter_value = table->parseDate(timestamp_str);
+                        }
+                        catch (const std::exception &e)
+                        {
+                            std::cerr << "Failed to parse date from filter: " << e.what() << std::endl;
+                            continue;
+                        }
+                        break;
+                    default:
+                        continue;
+                    }
+                    filter_conditions.emplace_back(column_name, op, filter_value);
+                    break;
+                }
+                // Maybe Handle other filter types (Constant Comparison)
+                default:
+                    break;
+                }
+            }
+
+            // Apply the filters to the table
+            if (!filter_conditions.empty())
+            {
+                for (auto &filter : filter_conditions)
+                {
+                    std::cout << indent << "Filter: " << filter.toString() << std::endl;
+                }
+                table->addFilters(filter_conditions);
+            }
+        }
+        break;
+    }
+    case LogicalOperatorType::LOGICAL_COMPARISON_JOIN:
+    {
+        auto join = reinterpret_cast<LogicalComparisonJoin *>(op);
+        std::cout << indent << "Join Type: " << JoinTypeToString(join->join_type) << std::endl;
+
+        // Print join conditions if available
+        if (!join->conditions.empty())
+        {
+            std::cout << indent << "Join Conditions: ";
+            for (size_t i = 0; i < join->conditions.size(); i++)
+            {
+                if (i > 0)
+                    std::cout << ", ";
+                std::cout << join->conditions[i].left->ToString() << " "
+                          << ExpressionTypeToOperator(join->conditions[i].comparison) << " "
+                          << join->conditions[i].right->ToString();
+            }
+            std::cout << std::endl;
+        }
+        else if (!join->expressions.empty())
+        {
+            // Some joins might still use expressions for conditions
+            std::cout << indent << "Join Expressions: ";
+            for (size_t i = 0; i < join->expressions.size(); i++)
+            {
+                if (i > 0)
+                    std::cout << ", ";
+                std::cout << join->expressions[i]->ToString();
+            }
+            std::cout << std::endl;
+        }
+
+        std::unordered_set<idx_t> left_bindings;
+        std::unordered_set<idx_t> right_bindings;
+
+        if (!join->children.empty() && join->children.size() >= 2)
+        {
+
+            // Additionally, get the actual table names
+            std::vector<std::string> left_tables;
+            std::vector<std::string> right_tables;
+
+            getTableNames(join->children[0].get(), left_tables);
+            getTableNames(join->children[1].get(), right_tables);
+
+            std::cout << indent << "Left Tables: ";
+            for (size_t i = 0; i < left_tables.size(); i++)
+            {
+                if (i > 0)
+                    std::cout << ", ";
+                std::cout << left_tables[i];
+            }
+            std::cout << std::endl;
+
+            std::cout << indent << "Right Tables: ";
+            for (size_t i = 0; i < right_tables.size(); i++)
+            {
+                if (i > 0)
+                    std::cout << ", ";
+                std::cout << right_tables[i];
+            }
+            std::cout << std::endl;
+        }
+
+        // Print predicate if available (your existing code)
+        if (join->predicate)
+        {
+            std::cout << indent << "Additional Predicate: " << join->predicate->ToString() << std::endl;
+        }
+
+        break;
+    }
+    case LogicalOperatorType::LOGICAL_ORDER_BY:
+    {
+        auto order = reinterpret_cast<LogicalOrder *>(op);
+        std::cout << indent << "Order By: ";
+        for (size_t i = 0; i < order->orders.size(); i++)
+        {
+            if (i > 0)
+                std::cout << ", ";
+            std::cout << order->orders[i].expression->ToString() << " "
+                      << (order->orders[i].type == OrderType::ASCENDING ? "ASC" : "DESC");
+        }
+        std::cout << std::endl;
+        break;
+    }
+    default:
+        break;
+    }
+
+    std::cout << indent << "------------------------" << std::endl;
+
+    // Recursively traverse child nodes
+    for (auto &child : op->children)
+    {
+        traverseLogicalOperator(manager, child.get(), depth + 1);
+    }
+}
 
 int main()
 {
@@ -490,18 +557,27 @@ int main()
         //     "AND d.department_name != 'HR' " \
         //     "AND e.department_id = d.id " \
         //     "ORDER BY e.salary DESC"
-            "SELECT name, salary, hire_date "
-            "FROM employees "
-            "WHERE salary > 50000 "
-            "ORDER BY salary DESC"};
-        std::cout << "=========================================" << std::endl;
-        std::cout << db_manager.readNextBatch("employees") << std::endl;
-        std::cout << "=========================================" << std::endl;
-        std::cout << db_manager.readNextBatch("employees") << std::endl;
-        std::cout << "=========================================" << std::endl;
-        std::cout << db_manager.readNextBatch("employees") << std::endl;
-        std::cout << "=========================================" << std::endl;
-        std::cout << db_manager.readNextBatch("employees") << std::endl;
+            // "SELECT name, salary, hire_date "
+            // "FROM employees "
+            // "WHERE (salary > 50000 AND name='Brittany Gonzalez' AND hire_date >'2023-10-22') "
+            // "WHERE (salary > 50000 AND name = 'Engineering') "
+            // "OR (hire_date > '2020-01-01' AND department_id = '456') "
+            // "ORDER BY salary DESC",
+            // "SELECT name, salary, hire_date "
+            // "FROM employees "
+            // "WHERE (salary > 50000 AND name='Brittany Gonzalez' AND hire_date >='2023-10-22') "
+            // "ORDER BY salary DESC",
+
+            "SELECT project_id,project_name,start_date " \
+            "FROM projects WHERE project_id > 5465 AND start_date> '2020-10-16' AND budget > 500 " \
+        };
+
+        // std::cout << "=========================================" << std::endl;
+        // std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // std::cout << "=========================================" << std::endl;
+        // std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // std::cout << "=========================================" << std::endl;
+        // std::cout << db_manager.readNextBatch("employees") << std::endl;
         // std::cout << "=========================================" << std::endl;
         // std::cout << db_manager.readNextBatch("employees") << std::endl;
         // std::cout << "=========================================" << std::endl;
@@ -521,9 +597,11 @@ int main()
             std::cout << std::endl;
             // Use our custom traversal function
             std::cout << "Custom tree traversal:" << std::endl;
-            traverseLogicalOperator(plan.get());
+            traverseLogicalOperator(db_manager, plan.get());
             std::cout << std::endl;
         }
+        std::cout << "=========================================" << std::endl;
+        std::cout << db_manager.readNextBatch("projects") << std::endl;
     }
     catch (std::exception &e)
     {

@@ -5,11 +5,10 @@
 #include <vector>
 #include <string>
 #include <chrono>
-
-// Forward declaration of ColumnBatch
+#include <variant>
+#include <functional>
 class ColumnBatch;
 
-// Enum for column types
 enum class ColumnType
 {
     STRING, // VARCHAR/TEXT
@@ -17,6 +16,36 @@ enum class ColumnType
     DATE,   // TIMESTAMP
     UNKNOWN
 };
+enum class FilterOperator {
+    EQUALS,
+    NOT_EQUALS,
+    LESS_THAN,
+    LESS_THAN_EQUALS,
+    GREATER_THAN,
+    GREATER_THAN_EQUALS
+};
+
+class FilterCondition {
+public:
+    // The value a filter can check against (supports all column types)
+    using FilterValue = std::variant<double, std::string, std::chrono::system_clock::time_point>;
+    
+    FilterCondition(const std::string& column_name, FilterOperator op, FilterValue value)
+        : column_name(column_name), op(op), value(std::move(value)) {}
+    
+    // Evaluate the condition against a value from a table row
+    bool evaluate(const FilterValue& row_value) const;
+    
+    std::string toString() const;
+    const std::string& getColumnName() const { return column_name; }
+
+private:
+    std::string column_name;  // Name of column to filter on
+    FilterOperator op;        // Comparison operator
+    FilterValue value;        // Value to compare against
+};
+
+
 
 // Helper function to convert ColumnType to string
 std::string columnTypeToString(ColumnType type);
@@ -32,27 +61,22 @@ struct ColumnMetadata
     std::string duckdb_type; // Original DuckDB type name
     bool is_primary_key;     // Flag to indicate if column is a primary key
     size_t index;            // Column index in table
-    size_t byte_offset;      // Byte offset in the row structure
-    size_t element_size;     // Size in bytes for the element (for fixed-size types)
 
     // Constructor
     ColumnMetadata(const std::string &name, ColumnType type, const std::string &duckdb_type,
-                   bool is_primary_key, size_t index, size_t byte_offset = 0, size_t element_size = 0);
+                   bool is_primary_key, size_t index);
 };
 
-// Class for a batch of data from a column
 class ColumnBatch
 {
 private:
     ColumnType type;
     size_t num_rows;
 
-    // Data storage - using std::vector for flexibility
     std::vector<double> double_data;
     std::vector<std::string> string_data;
     std::vector<std::chrono::system_clock::time_point> date_data;
 
-    // Flag to indicate if data is on GPU
     bool on_gpu;
     void *gpu_data_ptr; // GPU memory pointer (to be used with CUDA APIs)
 
@@ -80,4 +104,4 @@ public:
     bool isOnGPU() const;
 };
 
-#endif // COLUMN_H
+#endif

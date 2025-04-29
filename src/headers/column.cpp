@@ -1,7 +1,7 @@
 #include "column.h"
 #include <stdexcept>
-
-// Helper function to convert ColumnType to string
+#include <iomanip>
+#include <sstream>
 std::string columnTypeToString(ColumnType type)
 {
     switch (type)
@@ -30,9 +30,9 @@ ColumnType stringToColumnType(const std::string &type_str)
 }
 
 ColumnMetadata::ColumnMetadata(const std::string &name, ColumnType type, const std::string &duckdb_type,
-                               bool is_primary_key, size_t index, size_t byte_offset, size_t element_size)
+                               bool is_primary_key, size_t index)
     : name(name), type(type), duckdb_type(duckdb_type), is_primary_key(is_primary_key),
-      index(index), byte_offset(byte_offset), element_size(element_size) {}
+      index(index){}
 
 ColumnBatch::ColumnBatch(ColumnType type, size_t expected_rows)
     : type(type), num_rows(0), on_gpu(false), gpu_data_ptr(nullptr)
@@ -150,7 +150,69 @@ void ColumnBatch::freeGpuMemory()
     }
 }
 
+bool FilterCondition::evaluate(const FilterValue& row_value) const {
+    return std::visit([&](const auto& filter_val) {
+        // Handle the case where row_value and value types don't match
+        if (!std::holds_alternative<std::decay_t<decltype(filter_val)>>(row_value)) {
+            return false;
+        }
+
+        // Safe to get value since we've verified the types match
+        auto row_val = std::get<std::decay_t<decltype(filter_val)>>(row_value);
+
+        switch (op) {
+            case FilterOperator::EQUALS:
+                return row_val == filter_val;
+            case FilterOperator::NOT_EQUALS:
+                return row_val != filter_val;
+            case FilterOperator::LESS_THAN:
+                return row_val < filter_val;
+            case FilterOperator::LESS_THAN_EQUALS:
+                return row_val <= filter_val;
+            case FilterOperator::GREATER_THAN:
+                return row_val > filter_val;
+            case FilterOperator::GREATER_THAN_EQUALS:
+                return row_val >= filter_val;
+            default:
+                return false;
+        }
+    }, value);
+}
+
 // Utilities
 size_t ColumnBatch::size() const { return num_rows; }
 ColumnType ColumnBatch::getType() const { return type; }
 bool ColumnBatch::isOnGPU() const { return on_gpu; }
+
+std::string operatorToString(FilterOperator op) {
+    switch (op) {
+        case FilterOperator::EQUALS: return "=";
+        case FilterOperator::NOT_EQUALS: return "!=";
+        case FilterOperator::LESS_THAN: return "<";
+        case FilterOperator::LESS_THAN_EQUALS: return "<=";
+        case FilterOperator::GREATER_THAN: return ">";
+        case FilterOperator::GREATER_THAN_EQUALS: return ">=";
+        default: return "?";
+    }
+}
+std::string FilterCondition::toString() const {
+    std::stringstream ss;
+    ss << column_name << " " << operatorToString(op) << " ";
+    
+    std::visit([&](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, std::string>) {
+            ss << "'" << v << "'";
+        } else if constexpr (std::is_same_v<T, std::chrono::system_clock::time_point>) {
+            std::time_t time = std::chrono::system_clock::to_time_t(v);
+            std::tm tm = *std::localtime(&time);
+            char buffer[32];
+            std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm);
+            ss << "'" << buffer << "'";
+        } else {
+            ss << v;
+        }
+    }, value);
+    
+    return ss.str();
+}

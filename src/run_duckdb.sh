@@ -2,7 +2,7 @@
 export PATH=/usr/local/cuda/bin:$PATH
 DUCKDB_INCLUDE="./duckdb/src/include"
 DUCKDB_LIB="./duckdb/build/release/src" 
-nvcc -std=c++17 -o test_duckdb \
+nvcc -std=c++17 -arch=sm_86 -o test_duckdb \
   sql_parser.cpp \
   headers/column.cpp \
   headers/table.cpp \
