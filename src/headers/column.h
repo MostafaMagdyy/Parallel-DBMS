@@ -12,7 +12,7 @@ class ColumnBatch;
 enum class ColumnType
 {
     STRING, // VARCHAR/TEXT
-    DOUBLE, // NUMERIC/FLOAT
+    FLOAT, // NUMERIC/FLOAT
     DATE,   // TIMESTAMP
     UNKNOWN
 };
@@ -28,7 +28,7 @@ enum class FilterOperator {
 class FilterCondition {
 public:
     // The value a filter can check against (supports all column types)
-    using FilterValue = std::variant<double, std::string, std::chrono::system_clock::time_point>;
+    using FilterValue = std::variant<float, std::string, std::chrono::system_clock::time_point>;
     
     FilterCondition(const std::string& column_name, FilterOperator op, FilterValue value)
         : column_name(column_name), op(op), value(std::move(value)) {}
@@ -73,7 +73,7 @@ private:
     ColumnType type;
     size_t num_rows;
 
-    std::vector<double> double_data;
+    std::vector<float> double_data;
     std::vector<std::string> string_data;
     std::vector<std::chrono::system_clock::time_point> date_data;
 
@@ -85,12 +85,12 @@ public:
     ~ColumnBatch();
 
     // Add data to the batch
-    void addDouble(double value);
+    void addDouble(float value);
     void addString(const std::string &value);
     void addDate(const std::chrono::system_clock::time_point &value);
 
     // Get data
-    double getDouble(size_t row_idx) const;
+    float getDouble(size_t row_idx) const;
     const std::string &getString(size_t row_idx) const;
     std::chrono::system_clock::time_point getDate(size_t row_idx) const;
 

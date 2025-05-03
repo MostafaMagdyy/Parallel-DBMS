@@ -17,7 +17,7 @@ std::string formatMemorySize(size_t size_bytes)
 {
     const char *units[] = {"B", "KB", "MB", "GB"};
     int unit_index = 0;
-    double size = static_cast<double>(size_bytes);
+    float size = static_cast<float>(size_bytes);
 
     while (size >= 1024.0 && unit_index < 3)
     {
@@ -88,11 +88,8 @@ bool Table::readNextBatch()
         size_t memory_before = getCurrentRSS();
         auto total_start_time = std::chrono::high_resolution_clock::now();
         std::cout << "Memory usage before batch loading: " << formatMemorySize(memory_before) << std::endl;
-        // Create column batches
         for (const auto &col : columns)
-        {
             current_batch.push_back(std::make_unique<ColumnBatch>(col.type, batch_size));
-        }
 
         // Open the file
         std::ifstream file(file_path);
@@ -149,16 +146,18 @@ bool Table::readNextBatch()
             {
                 continue;
             }
-            
 
             // Process each column
             for (size_t col_idx = 0; col_idx < columns.size() && col_idx < fields.size(); col_idx++)
             {
                 const std::string &field = fields[col_idx];
-
+                if (projected_columns_map.find(col_idx) == projected_columns_map.end())
+                    continue;
+                // if(rows_read==0)
+                //     std::cout << "Processing column: " << columns[col_idx].name << std::endl;
                 switch (columns[col_idx].type)
                 {
-                case ColumnType::DOUBLE:
+                case ColumnType::FLOAT:
                     try
                     {
                         current_batch[col_idx]->addDouble(std::stod(field));
@@ -168,7 +167,7 @@ bool Table::readNextBatch()
                         std::cerr << "[ERROR] Line "
                                   << ", Column '" << columns[col_idx].name
                                   << "': Cannot convert '" << field
-                                  << "' to double: " << e.what() << std::endl;
+                                  << "' to float: " << e.what() << std::endl;
                     }
                     break;
 
@@ -210,7 +209,7 @@ bool Table::readNextBatch()
         // Should add another var to track total rows read(during to applying filters)
         std::cout << "Read " << rows_read << " rows from file" << std::endl;
         std::cout << "Has more data: " << has_more_data << std::endl;
-        std::chrono::duration<double> total_duration = total_end_time - total_start_time;
+        std::chrono::duration<float> total_duration = total_end_time - total_start_time;
         std::cout << "Batch read time: " << total_duration.count() << " seconds" << std::endl;
         std::cout << "Memory increase for this batch: " << formatMemorySize(memory_used) << std::endl;
         return rows_read > 0;
@@ -231,17 +230,53 @@ void Table::printCurrentBatch(size_t max_rows, size_t max_string_length) const
         return;
     }
 
-    size_t num_rows = current_batch[0]->size();
-    size_t num_cols = columns.size();
+    // Find the first non-null column batch to determine row count
+    size_t num_rows = 0;
+    for (const auto &col_batch : current_batch)
+    {
+        if (col_batch && col_batch->size() > 0)
+        {
+            num_rows = col_batch->size();
+            break;
+        }
+    }
+
+    if (num_rows == 0)
+    {
+        std::cout << "No rows in the current batch for table '" << name << "'." << std::endl;
+        return;
+    }
+
+    // Determine which columns to display (only non-null columns)
+    bool use_projection = !projected_columns_map.empty();
+    std::vector<size_t> cols_to_print;
+
+    // Get columns that have data
+    for (size_t i = 0; i < columns.size(); i++)
+    {
+        if (i < current_batch.size() && current_batch[i] && current_batch[i]->size() > 0)
+        {
+            cols_to_print.push_back(i);
+        }
+    }
+
+    size_t num_cols = cols_to_print.size();
 
     std::cout << "\n==== Table: " << name << " - Current Batch (" << num_rows
-              << " rows, " << num_cols << " columns) ====\n";
+              << " rows, " << num_cols << " columns";
+
+    if (use_projection)
+    {
+        std::cout << " [Projected]";
+    }
+
+    std::cout << ") ====\n";
 
     // Print column headers
     std::cout << "Row# | ";
-    for (const auto &col : columns)
+    for (const auto &col_idx : cols_to_print)
     {
-        std::string header = col.name;
+        std::string header = columns[col_idx].name;
         if (header.length() > max_string_length)
         {
             header = header.substr(0, max_string_length - 3) + "...";
@@ -284,21 +319,33 @@ void Table::printCurrentBatch(size_t max_rows, size_t max_string_length) const
 // Helper method to print a range of rows
 void Table::printRows(size_t start_row, size_t end_row, size_t max_string_length) const
 {
+    // Determine which columns to print (only non-null columns)
+    std::vector<size_t> cols_to_print;
+
+    // Get columns that have data
+    for (size_t i = 0; i < columns.size(); i++)
+    {
+        if (i < current_batch.size() && current_batch[i] && current_batch[i]->size() > 0)
+        {
+            cols_to_print.push_back(i);
+        }
+    }
+
     for (size_t row = start_row; row < end_row; row++)
     {
         std::cout << std::setw(4) << row << " | ";
 
-        for (size_t col = 0; col < columns.size(); col++)
+        for (const auto &col_idx : cols_to_print)
         {
             std::string value;
 
             try
             {
-                switch (columns[col].type)
+                switch (columns[col_idx].type)
                 {
-                case ColumnType::DOUBLE:
+                case ColumnType::FLOAT:
                 {
-                    double val = current_batch[col]->getDouble(row);
+                    float val = current_batch[col_idx]->getDouble(row);
                     std::stringstream ss;
                     ss << std::fixed << std::setprecision(4) << val;
                     value = ss.str();
@@ -307,7 +354,7 @@ void Table::printRows(size_t start_row, size_t end_row, size_t max_string_length
 
                 case ColumnType::STRING:
                 {
-                    value = current_batch[col]->getString(row);
+                    value = current_batch[col_idx]->getString(row);
                     if (value.length() > max_string_length)
                     {
                         value = value.substr(0, max_string_length - 3) + "...";
@@ -317,7 +364,7 @@ void Table::printRows(size_t start_row, size_t end_row, size_t max_string_length
 
                 case ColumnType::DATE:
                 {
-                    auto time_point = current_batch[col]->getDate(row);
+                    auto time_point = current_batch[col_idx]->getDate(row);
                     std::time_t time = std::chrono::system_clock::to_time_t(time_point);
                     std::tm tm = *std::localtime(&time);
                     char buffer[32];
@@ -390,6 +437,8 @@ bool Table::passesFilters(const std::vector<std::string> &row_values) const
         auto it = column_map.find(filter.getColumnName());
         if (it == column_map.end() || it->second >= row_values.size())
         {
+            std::cerr << "[ERROR] Filter column '" << filter.getColumnName()
+                      << "' not found in values." << std::endl;
             continue;
         }
         size_t col_idx = it->second;
@@ -399,8 +448,8 @@ bool Table::passesFilters(const std::vector<std::string> &row_values) const
         {
             switch (columns[col_idx].type)
             {
-            case ColumnType::DOUBLE:
-                row_value = std::stod(field);
+            case ColumnType::FLOAT:
+                row_value = static_cast<float>(std::stod(field));
                 break;
 
             case ColumnType::STRING:
@@ -421,7 +470,7 @@ bool Table::passesFilters(const std::vector<std::string> &row_values) const
                       << ", Column '" << columns[col_idx].name
                       << "': Cannot convert '" << field
                       << "' to appropriate type: " << e.what() << std::endl;
-            continue; // Skip this filter check on error
+            continue;
         }
         if (!filter.evaluate(row_value))
             return false;
@@ -444,4 +493,36 @@ void Table::addFilters(const std::vector<FilterCondition> &conditions)
 void Table::clearFilters()
 {
     filters.clear();
+}
+void Table::addProjectedColumns(const std::vector<std::size_t> &column_ids)
+{
+    size_t i = projected_columns_map.size();
+    for (const auto &id : column_ids)
+    {
+        if (id >= columns.size())
+        {
+            std::cerr << "[ERROR] Invalid column ID: " << id << " for table: " << name << std::endl;
+            break;
+        }
+        projected_columns_map[id] = i++;
+    }
+}
+
+std::vector<std::string> Table::getProjectedColumnNames() const
+{
+    std::vector<std::string> names;
+    if (projected_columns_map.empty())
+    {
+        std::cerr << "[ERROR] No projected columns available for table: " << std::endl;
+        return names;
+    }
+    else
+    {
+        for (const auto &[orgid, id] : projected_columns_map)
+        {
+            if (orgid < columns.size())
+                names.push_back(columns[orgid].name);
+        }
+    }
+    return names;
 }

@@ -8,8 +8,8 @@ std::string columnTypeToString(ColumnType type)
     {
     case ColumnType::STRING:
         return "STRING";
-    case ColumnType::DOUBLE:
-        return "DOUBLE";
+    case ColumnType::FLOAT:
+        return "FLOAT";
     case ColumnType::DATE:
         return "DATE";
     default:
@@ -22,8 +22,8 @@ ColumnType stringToColumnType(const std::string &type_str)
 {
     if (type_str == "VARCHAR")
         return ColumnType::STRING;
-    if (type_str == "DOUBLE")
-        return ColumnType::DOUBLE;
+    if (type_str == "FLOAT")
+        return ColumnType::FLOAT;
     if (type_str == "TIMESTAMP")
         return ColumnType::DATE;
     return ColumnType::UNKNOWN;
@@ -38,7 +38,7 @@ ColumnBatch::ColumnBatch(ColumnType type, size_t expected_rows)
     : type(type), num_rows(0), on_gpu(false), gpu_data_ptr(nullptr)
 {
     // Pre-allocate memory
-    if (type == ColumnType::DOUBLE)
+    if (type == ColumnType::FLOAT)
     {
         double_data.reserve(expected_rows);
     }
@@ -59,16 +59,16 @@ ColumnBatch::~ColumnBatch()
 }
 
 // Add data to the batch
-void ColumnBatch::addDouble(double value)
+void ColumnBatch::addDouble(float value)
 {
-    if (type == ColumnType::DOUBLE)
+    if (type == ColumnType::FLOAT)
     {
         double_data.push_back(value);
         num_rows++;
     }
     else
     {
-        throw std::runtime_error("Type mismatch: Cannot add double to " + columnTypeToString(type) + " column");
+        throw std::runtime_error("Type mismatch: Cannot add float to " + columnTypeToString(type) + " column");
     }
 }
 
@@ -99,11 +99,11 @@ void ColumnBatch::addDate(const std::chrono::system_clock::time_point &value)
 }
 
 // Get data
-double ColumnBatch::getDouble(size_t row_idx) const
+float ColumnBatch::getDouble(size_t row_idx) const
 {
-    if (type != ColumnType::DOUBLE || row_idx >= num_rows)
+    if (type != ColumnType::FLOAT || row_idx >= num_rows)
     {
-        throw std::out_of_range("Invalid access to double data");
+        throw std::out_of_range("Invalid access to float data");
     }
     return double_data[row_idx];
 }
