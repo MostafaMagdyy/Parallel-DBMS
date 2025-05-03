@@ -82,7 +82,6 @@ bool Table::readNextBatch()
     }
     try
     {
-        // Profile memory before loading
 
         // Reset current batch
         current_batch.clear();
@@ -150,6 +149,7 @@ bool Table::readNextBatch()
             {
                 continue;
             }
+            
 
             // Process each column
             for (size_t col_idx = 0; col_idx < columns.size() && col_idx < fields.size(); col_idx++)
