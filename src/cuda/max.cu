@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda_runtime.h>
+#include <math.h>
+#include <chrono>
+
+#define MAXNUMBER 1000000  // You can change this to control array size
 
 __device__ float atomicMaxFloat(float* address, float val) {
     int* address_as_int = (int*)address;
@@ -16,8 +20,6 @@ __device__ float atomicMaxFloat(float* address, float val) {
     return __int_as_float(old);
 }
 
-
-// Kernel to find maximum element using warp synchronization
 __global__ void findMaxElement(float* input, float* output, int size) {
     __shared__ float warp_maxes[32];
     
@@ -29,112 +31,83 @@ __global__ void findMaxElement(float* input, float* output, int size) {
     if (tid < size) {
         local_max = input[tid];
     }
-    
-    // Perform warp-level reduction using shuffle operations
+
     for (int offset = 16; offset > 0; offset /= 2) {
         float neighbor = __shfl_down_sync(0xffffffff, local_max, offset);
         local_max = fmaxf(local_max, neighbor);
     }
-    
-    // First thread in each warp writes result to shared memory
+
     if (lane_id == 0) {
         warp_maxes[warp_id] = local_max;
     }
-    
+
     __syncthreads();
-    
+
     if (warp_id == 0 && lane_id < (blockDim.x + 31) / 32) {
         local_max = warp_maxes[lane_id];
-        
-        // Final warp reduction
+
         for (int offset = 16; offset > 0; offset /= 2) {
             float neighbor = __shfl_down_sync(0xffffffff, local_max, offset);
             local_max = fmaxf(local_max, neighbor);
         }
-        
-        // First thread in block writes result to global memory
+
         if (lane_id == 0) {
             atomicMaxFloat(output, local_max);
         }
     }
 }
 
-void readInputFile(const char *filename, float **data, int *size) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        exit(EXIT_FAILURE);
+float findMaxCPU(float *data, int size) {
+    float maxVal = -INFINITY;
+    for (int i = 0; i < size; ++i) {
+        if (data[i] > maxVal)
+            maxVal = data[i];
     }
-
-    // Read the size of the array
-    fscanf(file, "%d", size);
-
-    // Allocate memory
-    *data = (float *)malloc(*size * sizeof(float));
-
-    // Read the array elements
-    for (int i = 0; i < *size; i++) {
-        fscanf(file, "%f", &(*data)[i]);
-    }
-
-    fclose(file);
-    printf("Read %d elements from input file\n", *size);
+    return maxVal;
 }
 
-void writeOutputFile(const char *filename, double result) {
-    FILE *file = fopen(filename, "w");
-    if (!file) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        exit(EXIT_FAILURE);
+int main() {
+    int size = MAXNUMBER;
+    float *h_input = (float *)malloc(size * sizeof(float));
+
+    for (int i = 0; i < size; ++i) {
+        h_input[i] = (float)(i + 1);  // Initialize from 1 to MAXNUMBER
     }
-
-    result = round(result * 1000.0) / 1000.0;
-
-    fprintf(file, "%.3f\n", result);
-    fclose(file);
-}
-
-
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Usage: %s <inputfile> <outputfile>\n", argv[0]);
-        return -1;
-    }
-
-    const char *inputFile = argv[1];
-    const char *outputFile = argv[2];
-
-    float *h_input;
-    int size;
-    readInputFile(inputFile, &h_input, &size);
 
     float *d_input, *d_output;
-    cudaMalloc(&d_input, size * sizeof(double));
-    cudaMalloc(&d_output, sizeof(double));
+    cudaMalloc(&d_input, size * sizeof(float));
+    cudaMalloc(&d_output, sizeof(float));
+    
+    auto gpu_start = std::chrono::high_resolution_clock::now();
+    cudaMemcpy(d_input, h_input, size * sizeof(float), cudaMemcpyHostToDevice);
 
-    cudaMemcpy(d_input, h_input, size * sizeof(double), cudaMemcpyHostToDevice);
-
-    double neg_inf = -INFINITY;
-    cudaMemcpy(d_output, &neg_inf, sizeof(double), cudaMemcpyHostToDevice);
+    float neg_inf = -INFINITY;
+    cudaMemcpy(d_output, &neg_inf, sizeof(float), cudaMemcpyHostToDevice);
 
     int blockSize = 256;
     int gridSize = (size + blockSize - 1) / blockSize;
 
-    printf("Launching max element finder kernel with grid size %d, block size %d\n", gridSize, blockSize);
-    
+    // Timing GPU
     findMaxElement<<<gridSize, blockSize>>>(d_input, d_output, size);
-    
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Kernel launch failed: %s\n", cudaGetErrorString(err));
-        return -1;
-    }
-
+    cudaDeviceSynchronize();
+    auto gpu_end = std::chrono::high_resolution_clock::now();
 
     float h_output;
     cudaMemcpy(&h_output, d_output, sizeof(float), cudaMemcpyDeviceToHost);
 
-    writeOutputFile(outputFile, h_output);
+    // Timing CPU
+    auto cpu_start = std::chrono::high_resolution_clock::now();
+    float cpu_result = findMaxCPU(h_input, size);
+    auto cpu_end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> gpu_time = gpu_end - gpu_start;
+    std::chrono::duration<double, std::milli> cpu_time = cpu_end - cpu_start;
+
+    printf("GPU result: %.3f in %.3f ms\n", h_output, gpu_time.count());
+    printf("CPU result: %.3f in %.3f ms\n", cpu_result, cpu_time.count());
+
+    double speedup = cpu_time.count() / gpu_time.count();
+    printf("Speedup: %.2fx\n", speedup);
 
     cudaFree(d_input);
     cudaFree(d_output);
