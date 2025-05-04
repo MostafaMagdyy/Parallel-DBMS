@@ -297,11 +297,10 @@ void traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *
 
     // Print indentation based on depth
     std::string indent(depth * 2, ' ');
-
+    for (auto &child : op->children)
+        traversePhysicalOperator(manager, &child.get(), depth + 1);
     // Print information about the current operator
     std::cout << indent << "Operator Type: " << op->GetName() << std::endl;
-
-    // Print operator-specific information based on operator type
     switch (op->type)
     {
     case duckdb::PhysicalOperatorType::TABLE_SCAN:
@@ -312,29 +311,12 @@ void traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *
         {
             std::cout << indent << "Table Name: " << params["Table"] << std::endl;
         }
-        // Show filters if available
+        // need further checks
+        auto table = manager.getTable(params["Table"]);
         if (params.find("Table") != params.end() && scan->table_filters && !scan->table_filters->filters.empty())
         {
-            auto table = manager.getTable(params["Table"]);
             table->clearFilters();
             std::vector<FilterCondition> filter_conditions;
-            std::cout << indent << "  Projected columns: ";
-            std::vector<std::size_t> projected_ids;
-            for (size_t i = 0; i < scan->projection_ids.size(); i++)
-            {
-                auto proj_id = scan->projection_ids[i];
-                proj_id = scan->column_ids[proj_id].GetPrimaryIndex();
-                if (proj_id < scan->names.size())
-                {
-
-                    std::cout << proj_id << ":" << scan->names[proj_id] << ' ';
-                    projected_ids.push_back(proj_id);
-                }
-                else
-                    std::cout << proj_id << "not found";
-            }
-            std::cout << std::endl;
-            table->addProjectedColumns(projected_ids);
             for (auto &kv : scan->table_filters->filters)
             {
 
@@ -421,6 +403,33 @@ void traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *
                 table->addFilters(filter_conditions);
             }
         }
+        std::cout << indent << "  Projected columns: ";
+        std::vector<std::size_t> projected_ids;
+        for (size_t i = 0; i < scan->projection_ids.size(); i++)
+        {
+            auto proj_id = scan->projection_ids[i];
+            proj_id = scan->column_ids[proj_id].GetPrimaryIndex();
+            if (proj_id < scan->names.size())
+            {
+
+                std::cout << proj_id << ":" << scan->names[proj_id] << ' ';
+                projected_ids.push_back(proj_id);
+            }
+            else
+                std::cout << proj_id << "not found";
+        }
+        std::cout << std::endl;
+        table->addProjectedColumns(projected_ids);
+        // Testing Aggregate ON GPU
+        // if (table->getName() == "projects")
+        // {
+        //     table->readNextBatch();
+        //     std::string result = table->computeAggregate("budget", AggregateType::AGG_MAX);
+        //     std::cout << indent << "Aggregate Result: " << result << std::endl;
+        //     std::cout << "GPU STARTED" << std::endl;
+        //     std::cout << "GPU FINISHED" << std::endl;
+        //     table->printCurrentBatch();
+        // }
 
         if (!params.empty())
         {
@@ -519,8 +528,6 @@ void traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *
         break;
     }
     std::cout << indent << "------------------------" << std::endl;
-    for (auto &child : op->children)
-        traversePhysicalOperator(manager, &child.get(), depth + 1);
 }
 int main()
 {
@@ -540,26 +547,18 @@ int main()
             //     "AND d.department_name != 'HR' " \
             //     "AND e.department_id = d.id " \
             //     "ORDER BY e.salary DESC"
-            "SELECT name, hire_date "
+            "SELECT max(salary) "
             "FROM employees "
-            "WHERE (salary > 50000 AND name='Brittany Gonzalez')",
+            "WHERE (salary > 50000 AND name='Brittany Gonzalez' AND hire_date >='2023-10-22') ",
+            // "SELECT max(budget) "
+            // "FROM projects ",
             // "ORDER BY salary DESC"
             // "SELECT name, salary, hire_date "
             // "FROM employees "
             // "WHERE (salary > 50000 AND name='Brittany Gonzalez' AND hire_date >='2023-10-22') "
             // "ORDER BY salary DESC"
         };
-        // "SELECT project_id,project_name,start_date " \
-                // "FROM projects WHERE project_id > 5465 AND start_date> '2020-10-16' AND budget > 500 " \
-            // };
-        // // std::cout << "=========================================" << std::endl;
-        // // std::cout << db_manager.readNextBatch("employees") << std::endl;
-        // // std::cout << "=========================================" << std::endl;
-        // // std::cout << db_manager.readNextBatch("employees") << std::endl;
-        // // std::cout << "=========================================" << std::endl;
-        // // std::cout << db_manager.readNextBatch("employees") << std::endl;
-        // // std::cout << "=========================================" << std::endl;
-        // // std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // std::cout << "=========================================" << std::endl;
         // // std::cout << "=========================================" << std::endl;
         // // std::cout << db_manager.readNextBatch("employees") << std::endl;
         for (auto &query : test_queries)

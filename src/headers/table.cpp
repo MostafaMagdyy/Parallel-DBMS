@@ -41,14 +41,16 @@ Table::Table(const std::string &name, const std::vector<ColumnMetadata> &columns
     {
         column_map[columns[i].name] = i;
     }
+    std::cout<<"Columns map for Table "<<name<<std::endl;
+    std::cout<<&column_map<<std::endl;
 }
-std::chrono::system_clock::time_point Table::parseDate(const std::string &dateStr) const
+int64_t Table::parseDate(const std::string &dateStr) const
 {
     // Handle empty or null values
     if (dateStr.empty() || dateStr == "NULL")
     {
         throw std::runtime_error("Invalid date format: " + dateStr +
-                                 " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
+                               " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
     }
 
     std::tm tm = {};
@@ -64,13 +66,15 @@ std::chrono::system_clock::time_point Table::parseDate(const std::string &dateSt
                 sscanf(dateStr.c_str() + 11, "%d:%d:%d", &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
             }
             std::time_t time = std::mktime(&tm);
-            return std::chrono::system_clock::from_time_t(time);
+            auto tp = std::chrono::system_clock::from_time_t(time);
+            // Convert to nanoseconds since epoch
+            return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
         }
     }
 
     // If parsing fails, throw an exception
     throw std::runtime_error("Invalid date format: " + dateStr +
-                             " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
+                           " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
 }
 
 bool Table::readNextBatch()
@@ -186,7 +190,6 @@ bool Table::readNextBatch()
                                   << ", Column '" << columns[col_idx].name
                                   << "': Cannot parse date '" << field
                                   << "': " << e.what() << std::endl;
-                        current_batch[col_idx]->addDate(std::chrono::system_clock::now());
                     }
                     break;
 
@@ -397,12 +400,36 @@ size_t Table::getCurrentBatchSize() const
 // Column access by name
 ColumnBatch *Table::getColumnBatch(const std::string &column_name)
 {
+    std::cout<< "Column dasdasdasname: " << column_name << std::endl;
+    std::cout<<&column_map<<std::endl;
+
+    std::cout<< "Column map size: " << column_map.size() << std::endl;
     auto it = column_map.find(column_name);
     if (it == column_map.end())
     {
         return nullptr;
     }
     return current_batch[it->second].get();
+}
+std::string Table::computeAggregate(const std::string& column_name, AggregateType agg_type)
+{
+    // Special case for COUNT(*) - count rows in table
+    if (column_name == "*" && agg_type == AGG_COUNT) {
+        // AggregateResult result;
+        // result.int_val = num_rows;
+        // return to_string(result.int_val);
+        return "ALL";
+    }
+    
+    // Find the requested column
+    ColumnBatch* column = getColumnBatch(column_name);
+    std::cout << "Computing aggregate for column: " << column_name << std::endl;
+    if (!column) {
+        throw std::runtime_error("Column not found: " + column_name);
+    }
+    
+    // Call the column's computeAggregate function
+    return column->computeAggregate(agg_type);
 }
 
 // Column access by index
@@ -457,7 +484,7 @@ bool Table::passesFilters(const std::vector<std::string> &row_values) const
                 break;
 
             case ColumnType::DATE:
-                row_value = parseDate(field);
+                row_value = parseDate(field); // Now returns int64_t
                 break;
 
             default:

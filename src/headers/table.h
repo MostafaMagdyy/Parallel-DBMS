@@ -55,7 +55,8 @@ private:
     size_t getColumnCount() const { return columns.size(); }
     bool hasMoreData() const { return has_more_data; }
     size_t getCurrentBatchSize() const;
-    std::chrono::system_clock::time_point parseDate(const std::string& dateStr) const;
+    int64_t parseDate(const std::string& dateStr) const; 
+    std::string computeAggregate(const std::string& column_name, AggregateType agg_type);
     ColumnBatch *getColumnBatch(const std::string &column_name);
     ColumnBatch *getColumnBatch(size_t column_index);
     bool transferBatchToGPU();
