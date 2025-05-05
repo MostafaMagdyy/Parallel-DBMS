@@ -10,6 +10,7 @@ nvcc -std=c++17 -arch=sm_86 -o test_duckdb \
   sql_parser.cpp \
   headers/column.cpp \
   headers/table.cpp \
+  headers/duckdb_manager.cpp \
   cuda/aggregate.o \
   -I$DUCKDB_INCLUDE -I. \
   -L$DUCKDB_LIB -lduckdb -lcudart \
@@ -18,11 +19,9 @@ nvcc -std=c++17 -arch=sm_86 -o test_duckdb \
 # Check if compilation was successful
 if [ $? -ne 0 ]; then
     echo "Compilation failed!"
-    exit 1
+else
+    echo "Compilation successful!"
+    export LD_LIBRARY_PATH=$DUCKDB_LIB:$LD_LIBRARY_PATH
+    ./test_duckdb
+    echo "Execution completed with exit code $?"
 fi
-
-echo "Compilation successful!"
-export LD_LIBRARY_PATH=$DUCKDB_LIB:$LD_LIBRARY_PATH
-./test_duckdb
-
-echo "Execution completed with exit code $?"

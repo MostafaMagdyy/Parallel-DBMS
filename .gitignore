@@ -30,5 +30,6 @@
 *.exe
 *.out
 *.app
+test_duckdb
 src/duckdb/
 src/csv_data/*.csv
