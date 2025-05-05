@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "cuda/aggregate.cuh"
 #include "cuda/aggregate_helper.h"
+#include "device_struct.h"
 #include <iomanip>
 #include <sstream>
 std::string columnTypeToString(ColumnType type)
@@ -37,7 +38,7 @@ ColumnMetadata::ColumnMetadata(const std::string &name, ColumnType type, const s
       index(index) {}
 
 ColumnBatch::ColumnBatch(ColumnType type, size_t expected_rows)
-    : type(type), num_rows(0), on_gpu(false), gpu_data_ptr(nullptr)
+    : type(type), num_rows(0), on_gpu(false)
 {
     // Pre-allocate memory
     if (type == ColumnType::FLOAT)
@@ -144,6 +145,25 @@ bool ColumnBatch::transferToGPU()
     if (on_gpu)
         return true; // Already on GPU
 
+    void *data_ptr = nullptr;
+    switch (type)
+    {
+        case ColumnType::FLOAT:
+            data_ptr = (void*)float_data.data();
+            break;
+        case ColumnType::STRING:
+            data_ptr = (void*)string_data.data();
+            break;
+        case ColumnType::DATE:
+            data_ptr = (void*)date_data.data();
+            break;
+        default:
+            throw std::runtime_error("Unsupported column type for GPU transfer");
+    }
+
+    this->cpu_struct_ptr = std::make_unique<DeviceStruct>(type, data_ptr, num_rows);
+
+    
     on_gpu = true; // Set this to true when implemented
     return on_gpu;
 }
@@ -152,12 +172,12 @@ void ColumnBatch::freeGpuMemory()
 {
     // To be implemented with CUDA
     // Free the GPU memory if allocated
-    if (on_gpu && gpu_data_ptr)
+    if (cpu_struct_ptr)
     {
-        // Call CUDA free
+        cpu_struct_ptr.reset(); // This is a unique_ptr, so it will automatically free the memory from the GPU
         on_gpu = false;
-        gpu_data_ptr = nullptr;
     }
+    
 }
 
 bool FilterCondition::evaluate(const FilterValue &row_value) const

@@ -1,6 +1,7 @@
 #ifndef COLUMN_H
 #define COLUMN_H
 
+#include <memory>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -8,23 +9,11 @@
 #include <variant>
 #include <functional>
 #include "../cuda/aggregate.cuh"
+#include "device_struct.h"
+#include "enums.h"
+
 class ColumnBatch;
 
-enum class ColumnType
-{
-    STRING, // VARCHAR/TEXT
-    FLOAT, // NUMERIC/FLOAT
-    DATE,   // TIMESTAMP
-    UNKNOWN
-};
-enum class FilterOperator {
-    EQUALS,
-    NOT_EQUALS,
-    LESS_THAN,
-    LESS_THAN_EQUALS,
-    GREATER_THAN,
-    GREATER_THAN_EQUALS
-};
 
 class FilterCondition {
 public:
@@ -79,7 +68,8 @@ private:
     std::vector<int64_t> date_data;
 
     bool on_gpu;
-    void *gpu_data_ptr; // GPU memory pointer (to be used with CUDA APIs)
+
+    std::unique_ptr<DeviceStruct> cpu_struct_ptr; // Pointer to CPU struct, the struct
 
 public:
     ColumnBatch(ColumnType type, size_t expected_rows);

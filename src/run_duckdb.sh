@@ -11,6 +11,8 @@ nvcc -std=c++17 -arch=sm_86 -o test_duckdb \
   headers/column.cpp \
   headers/table.cpp \
   headers/duckdb_manager.cpp \
+  headers/enums.cpp \
+  headers/device_struct.cpp \
   cuda/aggregate.o \
   -I$DUCKDB_INCLUDE -I. \
   -L$DUCKDB_LIB -lduckdb -lcudart \
