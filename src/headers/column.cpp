@@ -145,24 +145,23 @@ bool ColumnBatch::transferToGPU()
     if (on_gpu)
         return true; // Already on GPU
 
-    void *data_ptr = nullptr;
+    void *host_ptr = nullptr;
     switch (type)
     {
         case ColumnType::FLOAT:
-            data_ptr = (void*)float_data.data();
+            host_ptr = (void*)float_data.data();
             break;
         case ColumnType::STRING:
-            data_ptr = (void*)string_data.data();
+            host_ptr = (void*)string_data.data();
             break;
         case ColumnType::DATE:
-            data_ptr = (void*)date_data.data();
+            host_ptr = (void*)date_data.data();
             break;
         default:
             throw std::runtime_error("Unsupported column type for GPU transfer");
     }
 
-    this->cpu_struct_ptr = std::make_unique<DeviceStruct>(type, data_ptr, num_rows);
-
+    this->cpu_struct_ptr = DeviceStruct::createStruct(type, host_ptr, num_rows);
     
     on_gpu = true; // Set this to true when implemented
     return on_gpu;
@@ -174,7 +173,8 @@ void ColumnBatch::freeGpuMemory()
     // Free the GPU memory if allocated
     if (cpu_struct_ptr)
     {
-        cpu_struct_ptr.reset(); // This is a unique_ptr, so it will automatically free the memory from the GPU
+        DeviceStruct::deleteStruct(*this->cpu_struct_ptr); // This is a unique_ptr, so it will automatically free the memory from the GPU
+        delete this->cpu_struct_ptr;
         on_gpu = false;
     }
     
@@ -279,16 +279,16 @@ std::string ColumnBatch::computeAggregate(AggregateType agg_type)
     default:
         throw std::runtime_error("Unsupported column type for aggregation");
     }
-    void *data_ptr = nullptr;
+    void *host_ptr = nullptr;
     if (type == ColumnType::FLOAT)
     {
-        data_ptr = float_data.data();
+        host_ptr = float_data.data();
     }
     else
     {
-        data_ptr = date_data.data();
+        host_ptr = date_data.data();
     }
-    ::computeAggregate(data_ptr, num_rows, agg_type, val_type, result);
+    ::computeAggregate(host_ptr, num_rows, agg_type, val_type, result);
     std::string formatted = formatAggregateResult(result, type, agg_type);
     return formatted;
 }

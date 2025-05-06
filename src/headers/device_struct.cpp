@@ -3,9 +3,20 @@
 #include <stdexcept>
 
 // Constructor definition
-DeviceStruct::DeviceStruct(ColumnType type, void* host_ptr, int numRows) : type(type), numRows(numRows) {
-    rowSize = sizeFromColumnType(type);
+DeviceStruct::DeviceStruct(ColumnType type, void* device_ptr, size_t numRows, size_t rowSize){
+    this->type = type;
+    this->device_ptr = device_ptr;
+    this->numRows = numRows;
+    this->rowSize = rowSize;
+}
+
+
+
+DeviceStruct* DeviceStruct::createStruct(ColumnType type, void* host_ptr, size_t numRows){
+    size_t rowSize = sizeFromColumnType(type);
     cudaError_t err;
+
+    void* device_ptr;
 
     err = cudaMalloc(&device_ptr, numRows * rowSize);
     if (err != cudaSuccess) {
@@ -17,14 +28,16 @@ DeviceStruct::DeviceStruct(ColumnType type, void* host_ptr, int numRows) : type(
         cudaFree(device_ptr);
         throw "cudaMemcpy failed: " + std::string(cudaGetErrorString(err));
     }
+
+    return new DeviceStruct(type, device_ptr, numRows, rowSize);
 }
 
-//move constructor definition
-DeviceStruct::DeviceStruct(DeviceStruct&& other) noexcept : type(other.type), device_ptr(other.device_ptr), numRows(other.numRows), rowSize(other.rowSize) {
-    other.device_ptr = nullptr; // Prevent the destructor from freeing the memory
+void DeviceStruct::deleteStruct(DeviceStruct &deviceStruct){
+    cudaFree(deviceStruct.device_ptr);
+    deviceStruct.device_ptr = nullptr;
 }
 
 // Destructor definition
 DeviceStruct::~DeviceStruct() {
-    cudaFree(device_ptr);
+    std::cout << "destroying batch";
 }

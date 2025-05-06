@@ -8,15 +8,8 @@
 #include "duckdb_manager.h"
 // --------duckdb includes----------------
 #include <duckdb.hpp>
-#include <duckdb/planner/filter/constant_filter.hpp>
 #include <duckdb/execution/physical_plan_generator.hpp>
 #include <duckdb/execution/physical_operator.hpp>
-#include <duckdb/execution/operator/scan/physical_table_scan.hpp>
-#include <duckdb/execution/operator/filter/physical_filter.hpp>
-#include <duckdb/execution/operator/projection/physical_projection.hpp>
-#include <duckdb/execution/operator/join/physical_join.hpp>
-#include <duckdb/execution/operator/join/physical_hash_join.hpp>
-#include <duckdb/execution/operator/join/physical_nested_loop_join.hpp>
 #include <duckdb/execution/operator/order/physical_order.hpp>
 #include <duckdb/execution/operator/order/physical_top_n.hpp>
 #include <duckdb/parser/parser.hpp>
@@ -107,7 +100,7 @@ std::vector<ColumnMetadata> DuckDBManager::parseCSVHeader(const std::string &csv
             }
             else if (part == "N")
             {
-                duckdb_type = "FLOAT";
+                duckdb_type = "DOUBLE";
                 col_type = ColumnType::FLOAT;
             }
             else if (part == "D")
@@ -150,7 +143,6 @@ void DuckDBManager::createTableFromCSV(duckdb::DuckDB &db, duckdb::Connection &c
 {
     std::string table_name = fs::path(csv_file).stem().string();
     auto columns = parseCSVHeader(csv_file);
-
     std::stringstream create_sql;
     create_sql << "CREATE TABLE " << table_name << " (";
     for (size_t i = 0; i < columns.size(); ++i)

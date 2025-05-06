@@ -69,7 +69,7 @@ private:
 
     bool on_gpu;
 
-    std::unique_ptr<DeviceStruct> cpu_struct_ptr; // Pointer to CPU struct, the struct
+    DeviceStruct* cpu_struct_ptr; // Pointer to CPU struct, the struct
 
 public:
     ColumnBatch(ColumnType type, size_t expected_rows);

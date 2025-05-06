@@ -4,18 +4,20 @@
 #include <cuda_runtime.h>
 #include "enums.h"
 
-class DeviceStruct {
-    ColumnType type; 
-    void* device_ptr; // GPU memory pointer (to be used with CUDA APIs)
-    int numRows;
-    int rowSize;
+struct DeviceStruct
+{
+    ColumnType type;
+    void *device_ptr; // GPU memory pointer (to be used with CUDA APIs)
+    size_t numRows;
+    size_t rowSize;
+    DeviceStruct(ColumnType type, void *device_ptr, size_t numRows, size_t rowSize);
 
-    public:
+public:
     // Constructor declaration
-    DeviceStruct(ColumnType type, void* host_ptr, int numRows);
 
-    // Move constructor declaration
-    DeviceStruct(DeviceStruct&& other) noexcept;
+    static DeviceStruct *createStruct(ColumnType type, void *host_ptr, size_t numRows);
+    static void deleteStruct(DeviceStruct &deviceStruct);
+
     // Destructor declaration
     ~DeviceStruct();
 };

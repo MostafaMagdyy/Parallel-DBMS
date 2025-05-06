@@ -1,7 +1,7 @@
 #include "enums.h"
 #include <cstdint>
 
-int sizeFromColumnType(ColumnType type){
+size_t sizeFromColumnType(ColumnType type){
     switch (type)
     {
     case ColumnType::STRING:

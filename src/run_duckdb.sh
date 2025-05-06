@@ -6,7 +6,7 @@ DUCKDB_LIB="./duckdb/build/release/src"
 nvcc -std=c++17 -arch=sm_86 -c cuda/aggregate.cu -o cuda/aggregate.o
 
 # Then compile C++ files and link everything
-nvcc -std=c++17 -arch=sm_86 -o test_duckdb \
+nvcc -std=c++17 -arch=sm_86 -o sql \
   sql_parser.cpp \
   headers/column.cpp \
   headers/table.cpp \
@@ -14,6 +14,7 @@ nvcc -std=c++17 -arch=sm_86 -o test_duckdb \
   headers/enums.cpp \
   headers/device_struct.cpp \
   cuda/aggregate.o \
+  operators/aggregate.cpp \
   -I$DUCKDB_INCLUDE -I. \
   -L$DUCKDB_LIB -lduckdb -lcudart \
   -Xlinker -rpath=$DUCKDB_LIB
@@ -23,7 +24,7 @@ if [ $? -ne 0 ]; then
     echo "Compilation failed!"
 else
     echo "Compilation successful!"
-    export LD_LIBRARY_PATH=$DUCKDB_LIB:$LD_LIBRARY_PATH
-    ./test_duckdb
-    echo "Execution completed with exit code $?"
+    # export LD_LIBRARY_PATH=$DUCKDB_LIB:$LD_LIBRARY_PATH
+    # ./test_duckdb
+    # echo "Execution completed with exit code $?"
 fi

@@ -26,13 +26,15 @@ private:
     std::string file_path;                              // Path to the CSV file
     std::streampos last_file_pos;                       // Last file position for resuming reads
 
+    std::string order_by_column; 
     // Current batch information
     size_t current_row;                                      // Current row in the file
     bool has_more_data;                                      // Flag to indicate if there's more data to read
     std::vector<std::unique_ptr<ColumnBatch>> current_batch; // Current batch of data
     std::vector<FilterCondition> filters;
     std::unordered_map<size_t, size_t> projected_columns_map; 
-    void printRows(size_t start_row, size_t end_row, size_t max_string_length) const;
+    void printRows(size_t start_row, size_t end_row, size_t max_string_length);
+
     
     
     public:
@@ -47,7 +49,7 @@ private:
 
 
     bool readNextBatch();
-    void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30) const;
+    void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30);
     std::vector<std::string> getProjectedColumnNames() const;
     // Accessors
     const std::string &getName() const { return name; }

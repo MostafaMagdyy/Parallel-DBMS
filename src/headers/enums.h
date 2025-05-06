@@ -1,5 +1,6 @@
 #ifndef ENUMS_H
 #define ENUMS_H
+#include <cstddef>
 
 enum class ColumnType
 {
@@ -10,7 +11,7 @@ enum class ColumnType
     UNKNOWN
 };
 
-int sizeFromColumnType(ColumnType type);
+size_t sizeFromColumnType(ColumnType type);
 
 
 enum class FilterOperator {
