@@ -299,6 +299,7 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
         std::vector<ColumnMetadata> left_columns = left->getColumns();
         std::vector<size_t> left_projected_column_indices = left->getProjectedColumnIndices();
         for(size_t i = 0; i < left_projected_column_indices.size(); i++) {
+            std::cout << "left column: " << left_columns[left_projected_column_indices[i]].name << std::endl;
             result_columns.push_back(left_columns[left_projected_column_indices[i]]);
         }
     }
@@ -306,6 +307,7 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
         std::vector<ColumnMetadata> right_columns = right->getColumns();
         std::vector<size_t> right_projected_column_indices = right->getProjectedColumnIndices();
         for(size_t i = 0; i < right_projected_column_indices.size(); i++) {
+            std::cout << "right column: " << right_columns[right_projected_column_indices[i]].name << std::endl;
             result_columns.push_back(right_columns[right_projected_column_indices[i]]);
         }
     }   
@@ -313,6 +315,9 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
 
     std::string result_table_name = left->getName() + "_" + right->getName() + "_join" + std::to_string(time(0));
     std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
+    for(size_t i = 0; i < result_columns.size(); i++) {
+        std::cout << "result column: " << result_columns[i].name << std::endl;
+    }
     std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
     result_table->createCSVHeaders();
     std::cout << "111111111" << std::endl;

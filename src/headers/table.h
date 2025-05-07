@@ -33,7 +33,8 @@ private:
     bool has_more_data;                                      // Flag to indicate if there's more data to read
     std::vector<std::shared_ptr<ColumnBatch>> current_batch; // Current batch of data
     std::vector<FilterCondition> filters;
-    std::unordered_map<size_t, size_t> projected_columns_map; 
+    std::unordered_map<size_t, size_t> original_to_projected_map; 
+    std::vector<size_t> projected_to_original_map; 
     void printRows(size_t start_row, size_t end_row, size_t max_string_length);
 
     
@@ -53,12 +54,12 @@ private:
     void saveCurrentBatch();
     void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30);
     std::vector<std::string> getProjectedColumnNames() const;
-    std::vector<size_t> getProjectedColumnIndices() const;
+    std::vector<size_t> getProjectedColumnIndices() {return projected_to_original_map;};
     std::string getColumnName(size_t column_index) const;
     // Accessors
     const std::string &getName() const { return name; }
     const std::vector<ColumnMetadata> &getColumns() const { return columns; }
-    size_t getColumnCount() const { return projected_columns_map.size(); }
+    size_t getColumnCount() const { return original_to_projected_map.size(); }
     bool hasMoreData() const { return has_more_data; }
     size_t getCurrentBatchSize() const;
     int64_t parseDate(const std::string& dateStr) const; 

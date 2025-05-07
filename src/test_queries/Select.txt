@@ -1,1 +1,1 @@
-SELECT salary, id, dep_id FROM employees, departments  WHERE salary>5000 and departments.dep_id = employees.department_id
+SELECT salary, id, dep_id FROM employees, departments, projects  WHERE salary>5000 and departments.dep_id = employees.department_id and projects.proj_id = employees.id

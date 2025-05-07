@@ -40,7 +40,10 @@ Table::Table(const std::string &name, const std::vector<ColumnMetadata> &columns
     for (size_t i = 0; i < columns.size(); i++)
     {
         column_map[columns[i].name] = i;
+        original_to_projected_map[i] = i;
+        projected_to_original_map.push_back(i);
     }
+
     std::cout << "Table " << name << " created with " << columns.size() << " columns" << std::endl;
 }
 int64_t Table::parseDate(const std::string &dateStr) const
@@ -78,6 +81,7 @@ int64_t Table::parseDate(const std::string &dateStr) const
 
 bool Table::readNextBatch()
 {
+    std::cout << "reading next batch from " << name << std::endl;
     if (!has_more_data)
     {
         std::cerr << "No more data to read from file: " << file_path << std::endl;
@@ -92,8 +96,8 @@ bool Table::readNextBatch()
         size_t memory_before = getCurrentRSS();
         auto total_start_time = std::chrono::high_resolution_clock::now();
         std::cout << "Memory usage before batch loading: " << formatMemorySize(memory_before) << std::endl;
-        current_batch.resize(projected_columns_map.size());
-        for (const auto &[orgId, Id] : projected_columns_map)
+        current_batch.resize(original_to_projected_map.size());
+        for (const auto &[orgId, Id] : original_to_projected_map)
         {
             std::cout << "Column Batch Type" << columns[orgId].name << std::endl;
             current_batch[Id] = std::make_shared<ColumnBatch>(columns[orgId].type, batch_size);
@@ -162,9 +166,9 @@ bool Table::readNextBatch()
             for (size_t col_idx = 0; col_idx < columns.size() && col_idx < fields.size(); col_idx++)
             {
                 const std::string &field = fields[col_idx];
-                if (projected_columns_map.find(col_idx) == projected_columns_map.end())
+                if (original_to_projected_map.find(col_idx) == original_to_projected_map.end())
                     continue;
-                size_t projected_col_idx = projected_columns_map[col_idx];
+                size_t projected_col_idx = original_to_projected_map[col_idx];
                 // std::cout<<"Projected column index: " << projected_col_idx << std::endl;
                 // std::cout<<"Column name"<<columns[col_idx].name<<std::endl;
                 switch (columns[col_idx].type)
@@ -249,13 +253,14 @@ void Table::saveCurrentBatch()
     }
 
     std::cout << "Saving current batch to file: " << file_path << std::endl;
-
-    for (size_t j = 0; j < current_batch.size(); j++)
+    std::cout << "Current batch size: " << current_batch[0]->size() << std::endl;
+    for (size_t row_idx = 0; row_idx < current_batch[0]->size(); row_idx++)
     {
-        for (size_t i = 0; i < current_batch[0]->getNumRows(); i++)
+        for (size_t col_idx = 0; col_idx < current_batch.size(); col_idx++)
         {
-            file << current_batch[j]->toString(i);
-            if (i != current_batch[0]->getNumRows() - 1)
+
+            file << current_batch[col_idx]->toString(row_idx);
+            if (col_idx != current_batch.size() - 1)
             {
                 file << ", ";
             }
@@ -304,13 +309,13 @@ void Table::printCurrentBatch(size_t max_rows, size_t max_string_length)
     }
 
     // Determine which columns to display (only non-null columns)
-    bool use_projection = !projected_columns_map.empty();
+    bool use_projection = !original_to_projected_map.empty();
     std::vector<size_t> cols_to_print;
 
     // Get columns that have data
     for (size_t i = 0; i < columns.size(); i++)
     {
-        if (projected_columns_map.find(i) != projected_columns_map.end())
+        if (original_to_projected_map.find(i) != original_to_projected_map.end())
         {
             cols_to_print.push_back(i);
         }
@@ -381,7 +386,7 @@ void Table::printRows(size_t start_row, size_t end_row, size_t max_string_length
     // Get columns that have data
     for (size_t i = 0; i < columns.size(); i++)
     {
-        if (projected_columns_map.find(i) != projected_columns_map.end())
+        if (original_to_projected_map.find(i) != original_to_projected_map.end())
         {
             cols_to_print.push_back(i);
         }
@@ -394,7 +399,7 @@ void Table::printRows(size_t start_row, size_t end_row, size_t max_string_length
         for (const auto &col_idx : cols_to_print)
         {
             std::string value;
-            size_t projected_col_idx = projected_columns_map[col_idx];
+            size_t projected_col_idx = original_to_projected_map[col_idx];
             try
             {
                 switch (columns[col_idx].type)
@@ -552,13 +557,13 @@ size_t Table::getColumnIndexProjected(const std::string &column_name)
         throw std::runtime_error("Column not found: " + column_name);
     }
 
-    if (projected_columns_map.empty())
+    if (original_to_projected_map.empty())
     {
         return column_map[column_name];
     }
     else
     {
-        return projected_columns_map[column_map[column_name]];
+        return original_to_projected_map[column_map[column_name]];
     }
 }
 
@@ -586,30 +591,36 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
         current_batch.resize(columns.size()); // we assume there's no projection at the start of creating the table
         for (size_t i = 0; i < columns.size(); i++)
         {
-            std::cout << "Column Batch Type " << columns[i].name << std::endl;
+            std::cout << "Column Batch Type " << columnTypeToString(columns[i].type) << std::endl;
             current_batch[i] = std::make_shared<ColumnBatch>(columns[i].type, num_rows);
         }
     }
+
+    // TODO: copy the whole vector using memcpy and pointers instead of doing a for loop over rows
     std::cout << "Current batch size: " << num_rows << std::endl;
-    for (size_t i = 0; i < num_rows; i++)
+    for (size_t column_idx = 0; column_idx < current_batch.size(); column_idx++)
     {
-        for (size_t j = 0; j < current_batch.size(); j++)
+        for (size_t row_idx = 0; row_idx < num_rows; row_idx++)
         {
-            switch (current_batch[j]->getType())
+            switch (current_batch[column_idx]->getType())
             {
             case ColumnType::FLOAT:
-                current_batch[j]->addDouble(static_cast<float *>(result_table_batches[i])[j]);
+                std::cout << "here1" << '\n';
+                current_batch[column_idx]->addDouble(static_cast<float *>(result_table_batches[column_idx])[row_idx]);
                 break;
             case ColumnType::STRING:
                 // current_batch[j]->addString(static_cast<std::string>(result_table_batches[i][j]));
                 // TODO: add string to column batch
+                std::cout << "here2" << '\n';
                 throw std::runtime_error("String column not supported in result batch");
                 break;
             case ColumnType::DATE:
-                current_batch[j]->addDate(static_cast<int64_t *>(result_table_batches[i])[j]);
+                std::cout << "here3" << '\n';
+                current_batch[column_idx]->addDate(static_cast<int64_t *>(result_table_batches[column_idx])[row_idx]);
                 break;
             default:
-                throw std::runtime_error("Unsupported column type: " + columnTypeToString(current_batch[j]->getType()));
+                std::cout << "here4" << '\n';
+                throw std::runtime_error("Unsupported column type: " + columnTypeToString(current_batch[column_idx]->getType()));
             }
         }
     }
@@ -695,7 +706,9 @@ void Table::addProjectedColumns(const std::vector<std::size_t> &column_ids)
     {
         std::cout << id << " ";
     }
-    size_t i = projected_columns_map.size();
+    original_to_projected_map.clear();
+    projected_to_original_map.clear();
+    size_t i = 0;
     for (const auto &id : column_ids)
     {
         if (id >= columns.size())
@@ -703,38 +716,28 @@ void Table::addProjectedColumns(const std::vector<std::size_t> &column_ids)
             std::cerr << "[ERROR] Invalid column ID: " << id << " for table: " << name << std::endl;
             break;
         }
-        projected_columns_map[id] = i++;
+        original_to_projected_map[id] = i++;
+        projected_to_original_map.push_back(id);
     }
 }
 
 std::vector<std::string> Table::getProjectedColumnNames() const
 {
     std::vector<std::string> names;
-    if (projected_columns_map.empty())
+    if (original_to_projected_map.empty())
     {
         std::cerr << "[ERROR] No projected columns available for table: " << std::endl;
         return names;
     }
     else
     {
-        for (const auto &[orgid, id] : projected_columns_map)
+        for (const auto &[orgid, id] : original_to_projected_map)
         {
             if (orgid < columns.size())
                 names.push_back(columns[orgid].name);
         }
     }
     return names;
-}
-
-std::vector<size_t> Table::getProjectedColumnIndices() const
-{
-    // returns original column indices, not projected column indices
-    std::vector<size_t> indices;
-    for (const auto &[orgid, id] : projected_columns_map)
-    {
-        indices.push_back(orgid);
-    }
-    return indices;
 }
 
 std::string Table::getColumnName(size_t column_index) const

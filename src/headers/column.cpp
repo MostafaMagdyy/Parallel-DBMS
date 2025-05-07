@@ -71,6 +71,7 @@ void ColumnBatch::addDouble(float value)
     }
     else
     {
+        std::cout << "Type mismatch: Cannot add float to " + columnTypeToString(type) + " column" << std::endl;
         throw std::runtime_error("Type mismatch: Cannot add float to " + columnTypeToString(type) + " column");
     }
 }

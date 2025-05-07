@@ -1,5 +1,6 @@
 #ifndef ENUMS_H
 #define ENUMS_H
+#include <iostream>
 #include <cstddef>
 #include <string>   
 #include "duckdb/common/enums/expression_type.hpp" 
@@ -25,6 +26,7 @@ enum class ComparisonOperator {
 
 template<typename T>
 bool compareValues(T a, T b, ComparisonOperator op) {
+    std :: cout << "comparing " << a << " and " << b << std :: endl; 
     switch(op) {
         case ComparisonOperator::EQUALS:
             return a == b;
