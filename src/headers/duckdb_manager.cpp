@@ -215,11 +215,22 @@ bool DuckDBManager::readNextBatch(const std::string &table_name)
     if (it != tables.end())
     {
         bool res = it->second->readNextBatch();
-        if (res)
-            it->second->printCurrentBatch();
         return res;
     }
     return false;
+}
+
+void DuckDBManager::printCurrentBatch(const std::string &table_name, size_t max_rows, size_t max_string_length)
+{
+    auto it = tables.find(table_name);
+    if (it != tables.end())
+    {
+        it->second->printCurrentBatch(max_rows, max_string_length);
+    }
+    else
+    {
+        std::cerr << "Table not found: " << table_name << std::endl;
+    }
 }
 
 duckdb::PhysicalOperator *DuckDBManager::getQueryPlan(const std::string &query)
@@ -249,6 +260,17 @@ duckdb::PhysicalOperator *DuckDBManager::getQueryPlan(const std::string &query)
         std::cerr << "Error generating query plan: " << e.what() << std::endl;
         throw;
     }
+}
+
+void DuckDBManager::addTable(std::shared_ptr<Table> table)
+{
+    tables[table->getName()] = table;
+}
+
+std::string DuckDBManager::createTempTableName(const std::string &base_name)
+{
+    std::string temp_name = base_name + "_temp_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    return temp_name;
 }
 
 void DuckDBManager::listAllTables()

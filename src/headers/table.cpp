@@ -9,7 +9,7 @@ size_t getCurrentRSS()
 {
     struct rusage rusage;
     getrusage(RUSAGE_SELF, &rusage);
-    return (size_t)(rusage.ru_maxrss * 1024L); 
+    return (size_t)(rusage.ru_maxrss * 1024L);
 }
 
 // Add this function to format memory size nicely
@@ -41,8 +41,7 @@ Table::Table(const std::string &name, const std::vector<ColumnMetadata> &columns
     {
         column_map[columns[i].name] = i;
     }
-    std::cout<<"Columns map for Table "<<name<<std::endl;
-    std::cout<<&column_map<<std::endl;
+    std::cout << "Table " << name << " created with " << columns.size() << " columns" << std::endl;
 }
 int64_t Table::parseDate(const std::string &dateStr) const
 {
@@ -50,7 +49,7 @@ int64_t Table::parseDate(const std::string &dateStr) const
     if (dateStr.empty() || dateStr == "NULL")
     {
         throw std::runtime_error("Invalid date format: " + dateStr +
-                               " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
+                                 " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
     }
 
     std::tm tm = {};
@@ -74,7 +73,7 @@ int64_t Table::parseDate(const std::string &dateStr) const
 
     // If parsing fails, throw an exception
     throw std::runtime_error("Invalid date format: " + dateStr +
-                           " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
+                             " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
 }
 
 bool Table::readNextBatch()
@@ -88,16 +87,16 @@ bool Table::readNextBatch()
     {
 
         // Reset current batch
-        //TODO delete memory
+        // TODO delete memory
         current_batch.clear();
         size_t memory_before = getCurrentRSS();
         auto total_start_time = std::chrono::high_resolution_clock::now();
         std::cout << "Memory usage before batch loading: " << formatMemorySize(memory_before) << std::endl;
         current_batch.resize(projected_columns_map.size());
-        for (const auto &[orgId, Id] :projected_columns_map )
+        for (const auto &[orgId, Id] : projected_columns_map)
         {
-            std::cout<<"Column Batch Type"<<columns[orgId].name<<std::endl;
-            current_batch[Id]=std::make_unique<ColumnBatch>(columns[orgId].type, batch_size);
+            std::cout << "Column Batch Type" << columns[orgId].name << std::endl;
+            current_batch[Id] = std::make_shared<ColumnBatch>(columns[orgId].type, batch_size);
         }
         std::ifstream file(file_path);
         if (!file.is_open())
@@ -126,9 +125,9 @@ bool Table::readNextBatch()
                 return false;
             }
         }
-        if(filters.empty())
+        if (filters.empty())
         {
-            std::cout<<"No filters applied for table: " << name << std::endl;
+            std::cout << "No filters applied for table: " << name << std::endl;
         }
 
         std::string line;
@@ -153,7 +152,7 @@ bool Table::readNextBatch()
             {
                 fields.push_back(field);
             }
-            
+
             if (!passesFilters(fields))
             {
                 continue;
@@ -208,8 +207,8 @@ bool Table::readNextBatch()
                     break;
                 }
             }
-
             rows_read++;
+            this->number_of_rows++;
         }
         last_file_pos = file.tellg();
         current_row += rows_read;
@@ -235,6 +234,36 @@ bool Table::readNextBatch()
         return false;
     }
 }
+void Table::saveCurrentBatch()
+{
+    if (current_batch.empty())
+    {
+        std::cout << "No batch to save" << std::endl;
+        return;
+    }
+    std::ofstream file(file_path, std::ios::app);
+    if (!file.is_open())
+    {
+        std::cerr << "[ERROR] Failed to open file: " << file_path << std::endl;
+        return;
+    }
+
+    std::cout << "Saving current batch to file: " << file_path << std::endl;
+
+    for (size_t j = 0; j < current_batch.size(); j++)
+    {
+        for (size_t i = 0; i < current_batch[0]->getNumRows(); i++)
+        {
+            file << current_batch[j]->toString(i);
+            if (i != current_batch[0]->getNumRows() - 1)
+            {
+                file << ", ";
+            }
+        }
+        file << std::endl;
+    }
+    file.close();
+}
 // void Table::setOrderByColumn(const std::string &column_name)
 // {
 //     auto it = column_map.find(column_name);
@@ -250,6 +279,7 @@ bool Table::readNextBatch()
 
 void Table::printCurrentBatch(size_t max_rows, size_t max_string_length)
 {
+
     if (current_batch.empty())
     {
         std::cout << "No batch data available for table '" << name << "'." << std::endl;
@@ -339,7 +369,7 @@ void Table::printCurrentBatch(size_t max_rows, size_t max_string_length)
         printRows(num_rows - max_rows, num_rows, max_string_length);
     }
 
-    std::cout << separator << "\n";
+    std::cout << separator << std::endl;
 }
 
 // Helper method to print a range of rows
@@ -353,7 +383,7 @@ void Table::printRows(size_t start_row, size_t end_row, size_t max_string_length
     {
         if (projected_columns_map.find(i) != projected_columns_map.end())
         {
-                cols_to_print.push_back(i);
+            cols_to_print.push_back(i);
         }
     }
 
@@ -423,10 +453,10 @@ size_t Table::getCurrentBatchSize() const
 // Column access by name
 ColumnBatch *Table::getColumnBatch(const std::string &column_name)
 {
-    std::cout<< "Column dasdasdasname: " << column_name << std::endl;
-    std::cout<<&column_map<<std::endl;
+    std::cout << "Column dasdasdasname: " << column_name << std::endl;
+    std::cout << &column_map << std::endl;
 
-    std::cout<< "Column map size: " << column_map.size() << std::endl;
+    std::cout << "Column map size: " << column_map.size() << std::endl;
     auto it = column_map.find(column_name);
     if (it == column_map.end())
     {
@@ -434,23 +464,25 @@ ColumnBatch *Table::getColumnBatch(const std::string &column_name)
     }
     return current_batch[it->second].get();
 }
-std::string Table::computeAggregate(const std::string& column_name, AggregateType agg_type)
+std::string Table::computeAggregate(const std::string &column_name, AggregateType agg_type)
 {
     // Special case for COUNT(*) - count rows in table
-    if (column_name == "*" && agg_type == AGG_COUNT) {
+    if (column_name == "*" && agg_type == AGG_COUNT)
+    {
         // AggregateResult result;
         // result.int_val = num_rows;
         // return to_string(result.int_val);
         return "ALL";
     }
-    
+
     // Find the requested column
-    ColumnBatch* column = getColumnBatch(column_name);
+    ColumnBatch *column = getColumnBatch(column_name);
     std::cout << "Computing aggregate for column: " << column_name << std::endl;
-    if (!column) {
+    if (!column)
+    {
         throw std::runtime_error("Column not found: " + column_name);
     }
-    
+
     // Call the column's computeAggregate function
     return column->computeAggregate(agg_type);
 }
@@ -475,6 +507,117 @@ bool Table::transferBatchToGPU()
     }
     return success;
 }
+
+void Table::createCSVHeaders()
+{
+    std::ofstream file(file_path);
+    if (!file.is_open())
+    {
+        std::cerr << "[ERROR] Failed to open file: " << file_path << std::endl;
+        return;
+    }
+
+    for (size_t i = 0; i < columns.size(); i++)
+    {
+        std::string type;
+        switch (columns[i].type)
+        {
+        case ColumnType::FLOAT:
+            type = "N";
+            break;
+        case ColumnType::STRING:
+            type = "T";
+            break;
+        case ColumnType::DATE:
+            type = "D";
+            break;
+        default:
+            throw std::runtime_error("Unsupported column type: " + columnTypeToString(columns[i].type));
+        }
+
+        file << columns[i].name << " (" << type << ") ";
+        if (i != columns.size() - 1)
+        {
+            file << ", ";
+        }
+    }
+    file << std::endl;
+    file.close();
+}
+
+size_t Table::getColumnIndexProjected(const std::string &column_name)
+{
+    if (column_map.find(column_name) == column_map.end())
+    {
+        throw std::runtime_error("Column not found: " + column_name);
+    }
+
+    if (projected_columns_map.empty())
+    {
+        return column_map[column_name];
+    }
+    else
+    {
+        return projected_columns_map[column_map[column_name]];
+    }
+}
+
+size_t Table::getColumnIndexOriginal(const std::string &column_name)
+{
+    if (column_map.find(column_name) == column_map.end())
+    {
+        throw std::runtime_error("Column not found: " + column_name);
+    }
+    return column_map[column_name];
+}
+
+void Table::resetFilePositionToStart()
+{
+    current_row = 0;
+    last_file_pos = 0;
+    has_more_data = true;
+}
+
+void Table::addResultBatch(void **result_table_batches, size_t num_rows)
+{
+    std::cout << "Adding result batch to table: " << name << std::endl;
+    if (current_batch.empty())
+    {
+        current_batch.resize(columns.size()); // we assume there's no projection at the start of creating the table
+        for (size_t i = 0; i < columns.size(); i++)
+        {
+            std::cout << "Column Batch Type " << columns[i].name << std::endl;
+            current_batch[i] = std::make_shared<ColumnBatch>(columns[i].type, num_rows);
+        }
+    }
+    std::cout << "Current batch size: " << num_rows << std::endl;
+    for (size_t i = 0; i < num_rows; i++)
+    {
+        for (size_t j = 0; j < current_batch.size(); j++)
+        {
+            switch (current_batch[j]->getType())
+            {
+            case ColumnType::FLOAT:
+                current_batch[j]->addDouble(static_cast<float *>(result_table_batches[i])[j]);
+                break;
+            case ColumnType::STRING:
+                // current_batch[j]->addString(static_cast<std::string>(result_table_batches[i][j]));
+                // TODO: add string to column batch
+                throw std::runtime_error("String column not supported in result batch");
+                break;
+            case ColumnType::DATE:
+                current_batch[j]->addDate(static_cast<int64_t *>(result_table_batches[i])[j]);
+                break;
+            default:
+                throw std::runtime_error("Unsupported column type: " + columnTypeToString(current_batch[j]->getType()));
+            }
+        }
+    }
+    std::cout << "Current batch size after adding result batch: " << current_batch[0]->size() << std::endl;
+    std::cout << "Added result batch to table: " << name << std::endl;
+    this->has_more_data = true;
+}
+
 bool Table::passesFilters(const std::vector<std::string> &row_values) const
 {
     if (filters.empty())
@@ -546,6 +689,12 @@ void Table::clearFilters()
 }
 void Table::addProjectedColumns(const std::vector<std::size_t> &column_ids)
 {
+    std ::cout << "Adding projected columns for table: " << name << std::endl;
+    std::cout << "Projected columns: ";
+    for (const auto &id : column_ids)
+    {
+        std::cout << id << " ";
+    }
     size_t i = projected_columns_map.size();
     for (const auto &id : column_ids)
     {
@@ -575,4 +724,20 @@ std::vector<std::string> Table::getProjectedColumnNames() const
         }
     }
     return names;
+}
+
+std::vector<size_t> Table::getProjectedColumnIndices() const
+{
+    // returns original column indices, not projected column indices
+    std::vector<size_t> indices;
+    for (const auto &[orgid, id] : projected_columns_map)
+    {
+        indices.push_back(orgid);
+    }
+    return indices;
+}
+
+std::string Table::getColumnName(size_t column_index) const
+{
+    return columns[column_index].name;
 }

@@ -87,20 +87,20 @@ def main():
                 {'name': 'hire_date', 'type': 'D'},
                 {'name': 'department_id', 'type': 'N'}
             ],
-            'num_rows': 3000000
+            'num_rows': 5
         },
         {
             'name': 'departments',
             'columns': [
                 {'name': 'id', 'type': 'N', 'is_primary': True},
-                {'name': 'department_name', 'type': 'T'}
+                {'name': 'name', 'type': 'T'}
             ],
-            'num_rows': 10
+            'num_rows': 5
         },
         {
             'name': 'projects',
             'columns': [
-                {'name': 'project_id', 'type': 'N', 'is_primary': True},
+                {'name': 'id', 'type': 'N', 'is_primary': True},
                 {'name': 'project_name', 'type': 'T'},
                 {'name': 'start_date', 'type': 'D'},
                 {'name': 'budget', 'type': 'N'}

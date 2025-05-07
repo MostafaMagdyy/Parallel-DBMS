@@ -33,12 +33,14 @@
 #include "headers/column.h"
 #include "headers/table.h"
 #include "headers/duckdb_manager.h"
+#include "headers/enums.h"
 #include "operators/operator_enums.h"
 #include "operators/aggregate.h"
+#include "operators/join.h"
 
 namespace fs = std::filesystem;
 
-void table_scan(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
+std::shared_ptr<Table> table_scan(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
 {
     auto scan = reinterpret_cast<duckdb::PhysicalTableScan *>(op);
     auto params = scan->ParamsToString();
@@ -69,26 +71,26 @@ void table_scan(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::strin
             {
                 auto comparison = reinterpret_cast<duckdb::ConstantFilter *>(filter.get());
                 // Map comparison type to filter operator
-                FilterOperator op;
+                ComparisonOperator op;
                 switch (comparison->comparison_type)
                 {
                 case duckdb::ExpressionType::COMPARE_EQUAL:
-                    op = FilterOperator::EQUALS;
+                    op = ComparisonOperator::EQUALS;
                     break;
                 case duckdb::ExpressionType::COMPARE_NOTEQUAL:
-                    op = FilterOperator::NOT_EQUALS;
+                    op = ComparisonOperator::NOT_EQUALS;
                     break;
                 case duckdb::ExpressionType::COMPARE_LESSTHAN:
-                    op = FilterOperator::LESS_THAN;
+                    op = ComparisonOperator::LESS_THAN;
                     break;
                 case duckdb::ExpressionType::COMPARE_LESSTHANOREQUALTO:
-                    op = FilterOperator::LESS_THAN_EQUALS;
+                    op = ComparisonOperator::LESS_THAN_EQUALS;
                     break;
                 case duckdb::ExpressionType::COMPARE_GREATERTHAN:
-                    op = FilterOperator::GREATER_THAN;
+                    op = ComparisonOperator::GREATER_THAN;
                     break;
                 case duckdb::ExpressionType::COMPARE_GREATERTHANOREQUALTO:
-                    op = FilterOperator::GREATER_THAN_EQUALS;
+                    op = ComparisonOperator::GREATER_THAN_EQUALS;
                     break;
                 default:
                     continue;
@@ -133,7 +135,9 @@ void table_scan(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::strin
             else if (filter->filter_type == duckdb::TableFilterType::CONJUNCTION_AND)
             {
                 throw "CONJUCTION_AND not implemented";
-            } else{
+            }
+            else
+            {
                 throw "Filter type not implemented";
             }
         }
@@ -184,14 +188,19 @@ void table_scan(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::strin
             std::cout << indent << "  " << pair.first << ": " << pair.second << std::endl;
         }
     }
+    return table;
 }
-void filter(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
+std::shared_ptr<Table> filter(DuckDBManager &manager, std::shared_ptr<Table> table, duckdb::PhysicalOperator *op, std::string indent)
 {
+    // TODO: Create new table with filtered data and return it
     auto filter = reinterpret_cast<duckdb::PhysicalFilter *>(op);
     std::cout << indent << "Filter Expression: " << filter->expression->ToString() << std::endl;
     // Add more detailed information about the filter if needed
     if (filter->expression)
         std::cout << filter->expression->ToString() << std::endl;
+
+    std::cout << "Filter not implemented, returning original table" << std::endl;
+    return table;
 }
 
 void print_expression(duckdb::Expression *expr, int indent_level = 0)
@@ -249,76 +258,96 @@ void print_expression(duckdb::Expression *expr, int indent_level = 0)
     // //         break;
     // }
 }
-std::vector<std::string> getColumnNamesFromProjection(const duckdb::PhysicalOperator* op) {
+std::vector<std::string> getColumnNamesFromProjection(const duckdb::PhysicalOperator *op)
+{
     std::vector<std::string> column_names;
-        if (!op || op->children.empty()) {
+    if (!op || op->children.empty())
+    {
         return column_names;
     }
-    duckdb::PhysicalOperator* child_op = &op->children[0].get();
-    if (child_op && (child_op->type == duckdb::PhysicalOperatorType::PROJECTION || 
-                    child_op->GetName() == "PROJECTION")) {
-        auto projection = reinterpret_cast<duckdb::PhysicalProjection*>(child_op);        
+    duckdb::PhysicalOperator *child_op = &op->children[0].get();
+    if (child_op && (child_op->type == duckdb::PhysicalOperatorType::PROJECTION ||
+                     child_op->GetName() == "PROJECTION"))
+    {
+        auto projection = reinterpret_cast<duckdb::PhysicalProjection *>(child_op);
         for (size_t i = 0; i < projection->select_list.size(); i++)
         {
             column_names.push_back(projection->select_list[i]->ToString());
         }
-    }    
-    else if (child_op) {
-        std::cout<<"ERROR: Child operator is not a projection" << std::endl;
     }
-    
+    else if (child_op)
+    {
+        std::cout << "ERROR: Child operator is not a projection" << std::endl;
+    }
+
     return column_names;
 }
 
-void nested_loop_join(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
+std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<Table> left, std::shared_ptr<Table> right, duckdb::PhysicalOperator *op, std::string indent)
 {
+    // TODO implement join and return the new made table
     auto join = reinterpret_cast<duckdb::PhysicalJoin *>(op);
     std::cout << indent << "Join Type: " << duckdb::JoinTypeToString(join->join_type) << std::endl;
-    if (op->type == duckdb::PhysicalOperatorType::HASH_JOIN)
-    {
-        auto hash_join = reinterpret_cast<duckdb::PhysicalHashJoin *>(op);
 
-        // Print join conditions
-        std::cout << indent << "Join Conditions: ";
-        for (size_t i = 0; i < hash_join->conditions.size(); i++)
-        {
-            if (i > 0)
-                std::cout << ", ";
-            std::cout << hash_join->conditions[i].left->ToString() << " "
-                      << duckdb::ExpressionTypeToOperator(hash_join->conditions[i].comparison) << " "
-                      << hash_join->conditions[i].right->ToString();
+    auto nested_join = reinterpret_cast<duckdb::PhysicalComparisonJoin *>(op);
+
+    // Print join conditions
+    std::cout << indent << "Join Conditions: ";
+
+    std::vector<ColumnMetadata> result_columns;
+    {
+        std::vector<ColumnMetadata> left_columns = left->getColumns();
+        std::vector<size_t> left_projected_column_indices = left->getProjectedColumnIndices();
+        for(size_t i = 0; i < left_projected_column_indices.size(); i++) {
+            result_columns.push_back(left_columns[left_projected_column_indices[i]]);
         }
-        std::cout << std::endl;
     }
-    else if (op->type == duckdb::PhysicalOperatorType::NESTED_LOOP_JOIN)
     {
-        auto nested_join = reinterpret_cast<duckdb::PhysicalNestedLoopJoin *>(op);
-
-        // Print join conditions
-        std::cout << indent << "Join Conditions: ";
-        for (size_t i = 0; i < nested_join->conditions.size(); i++)
-        {
-            if (i > 0)
-                std::cout << ", ";
-            std::cout << nested_join->conditions[i].left->ToString() << " "
-                      << duckdb::ExpressionTypeToOperator(nested_join->conditions[i].comparison) << " "
-                      << nested_join->conditions[i].right->ToString();
+        std::vector<ColumnMetadata> right_columns = right->getColumns();
+        std::vector<size_t> right_projected_column_indices = right->getProjectedColumnIndices();
+        for(size_t i = 0; i < right_projected_column_indices.size(); i++) {
+            result_columns.push_back(right_columns[right_projected_column_indices[i]]);
         }
-        std::cout << std::endl;
-    }
-    else if (op->type == duckdb::PhysicalOperatorType::BLOCKWISE_NL_JOIN)
-    {
-        auto block_join = reinterpret_cast<duckdb::PhysicalBlockwiseNLJoin *>(op);
+    }   
 
-        // Print join conditions
-        std::cout << indent << "Join Conditions: ";
-        print_expression(block_join->condition.get(), indent.length() / 2 + 1);
-        std::cout << std::endl;
+
+    std::string result_table_name = left->getName() + "_" + right->getName() + "_join" + std::to_string(time(0));
+    std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
+    std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
+    result_table->createCSVHeaders();
+    std::cout << "111111111" << std::endl;
+    manager.addTable(result_table);  
+    std::cout << "222222222" << std::endl;
+    std::vector<JoinCondition> join_conditions; 
+    std::vector<ColumnMetadata> left_columns = left->getColumns();
+    for (size_t i = 0; i < nested_join->conditions.size(); i++)
+    {
+        JoinCondition  join_condition;
+        join_condition.leftColumnIdx = left->getColumnIndexProjected(nested_join->conditions[i].left->ToString());
+        join_condition.rightColumnIdx = right->getColumnIndexProjected(nested_join->conditions[i].right->ToString());
+        join_condition.op = duckDBExpressionTypeToComparisonOperator(nested_join->conditions[i].comparison);
+        join_condition.columnType = left_columns[left->getColumnIndexOriginal(nested_join->conditions[i].left->ToString())].type;
+        join_conditions.push_back(join_condition);      
     }
+    std::cout << "333333333" << std::endl;
+    for (size_t i = 0; i < join_conditions.size(); i++) {
+        if (i > 0) {
+            std::cout << ", ";
+        }
+        std::cout << left->getColumnName(join_conditions[i].leftColumnIdx) << " " << comparisonOperatorToString(join_conditions[i].op) << " " << right->getColumnName(join_conditions[i].rightColumnIdx) << std::endl;
+    }
+    std::cout << "444444444" << std::endl;
+    std::cout << std::endl;
+
+    joinTablesCPU(left, right, join_conditions, result_table);
+    result_table->saveCurrentBatch();
+
+    return result_table;
 }
 
-void projection(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
+std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table> table, duckdb::PhysicalOperator *op, std::string indent)
 {
+    // TODO: implement projection
     auto projection = reinterpret_cast<duckdb::PhysicalProjection *>(op);
     std::cout << indent << "Projection Expressions: ";
     for (size_t i = 0; i < projection->select_list.size(); i++)
@@ -327,11 +356,16 @@ void projection(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::strin
             std::cout << ", ";
         std::cout << projection->select_list[i]->ToString() << ' ';
     }
+    std::cout << "Projection filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
+    return table;
 }
 
-void order_by(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent )
+std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> table, duckdb::PhysicalOperator *op, std::string indent)
 {
+    // TODO implement order by
+    std::shared_ptr<Table> result_table = table;
+
     auto order = reinterpret_cast<duckdb::PhysicalOrder *>(op);
     std::cout << indent << "Order By: ";
     for (size_t i = 0; i < order->orders.size(); i++)
@@ -342,29 +376,31 @@ void order_by(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string 
         // if (!order_columns.empty() && i < order_columns.size()) {
         //     std::string full_expr = order_columns[i];
         //     std::string clean_column = full_expr;
-            
+
         //     // Find the last dot and extract just the column name
         //     size_t last_dot_pos = full_expr.find_last_of('.');
         //     if (last_dot_pos != std::string::npos) {
         //         clean_column = full_expr.substr(last_dot_pos + 1);
         //     }
-            
-        //     std::cout << clean_column << " " 
+
+        //     std::cout << clean_column << " "
         //              << (order->orders[i].type == duckdb::OrderType::ASCENDING ? "ASC" : "DESC");
         // } else {
         //     std::cout << order->orders[i].expression->ToString() << " "
         //              << (order->orders[i].type == duckdb::OrderType::ASCENDING ? "ASC" : "DESC");
         // }
     }
-  std::cout << std::endl;
+    std::cout << "order by filter not implemented, original table returned" << std::endl;
+    std::cout << std::endl;
+    return result_table;
 }
 
-void aggregate(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
+std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> table, duckdb::PhysicalOperator *op, std::string indent)
 {
 
-
+    // TODO implement aggreagate on the passed table corrrectly.
     auto aggregate = reinterpret_cast<duckdb::PhysicalUngroupedAggregate *>(op);
-    
+
     std::vector<std::string> column_names = getColumnNamesFromProjection(op);
     std::cout << indent << "Aggregate Functions: ";
 
@@ -377,88 +413,112 @@ void aggregate(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string
         std::cout << aggregate->aggregates[i]->ToString();
         AggregateFunctionType aggFunc = parseAggregateExpression(aggregate->aggregates[i]->ToString()); // we will assume that index #0, #1 is always ordered so we don't have to parse it ourselves
         aggregate_functions.push_back(aggFunc);
-        std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] <<std::endl;
+        std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
+
+    std::cout << "Aggregate filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
+    return table;
 }
 
-void traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *op, int depth = 0)
+std::shared_ptr<Table> traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *op, int depth = 0)
 {
     if (!op)
-        return;
+        return nullptr;
 
     // Print indentation based on depth
     std::string indent(depth * 2, ' ');
+    std::vector<std::shared_ptr<Table>> child_tables; // Assuming at most two children for simplicity
     for (auto &child : op->children)
-        traversePhysicalOperator(manager, &child.get(), depth + 1);
+        child_tables.push_back(traversePhysicalOperator(manager, &child.get(), depth + 1));
+
     // Print information about the current operator
     std::cout << indent << "Operator Type: " << op->GetName() << std::endl;
+    std::shared_ptr<Table> result_table = nullptr;
     switch (op->type)
     {
     case duckdb::PhysicalOperatorType::TABLE_SCAN:
-        table_scan(manager, op, indent);
+        result_table = table_scan(manager, op, indent);
         break;
 
     case duckdb::PhysicalOperatorType::FILTER:
-        filter(manager, op, indent);
+        result_table = filter(manager, child_tables[0], op, indent);
         break;
 
     case duckdb::PhysicalOperatorType::PROJECTION:
-        projection(manager, op, indent);
+        result_table = projection(manager, child_tables[0], op, indent);
         break;
 
     case duckdb::PhysicalOperatorType::UNGROUPED_AGGREGATE:
-        aggregate(manager, op, indent);
+        result_table = aggregate(manager, child_tables[0], op, indent);
         break;
 
     case duckdb::PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+        std::cout << "BlockWise nl not implemented not implemented" << std::endl;
+        break;
     case duckdb::PhysicalOperatorType::HASH_JOIN:
     case duckdb::PhysicalOperatorType::NESTED_LOOP_JOIN:
-        nested_loop_join(manager, op, indent);
+        if (child_tables.size() < 2)
+        {
+            std::cerr << "ERROR: Join operator has less than 2 child tables." << std::endl;
+            return nullptr;
+        }
+        result_table = nested_loop_join(manager, child_tables[0], child_tables[1], op, indent);
         break;
 
     case duckdb::PhysicalOperatorType::ORDER_BY:
         // std::string table_name=manager.getTable(params["Table"]).getName();
-        order_by(manager, op, indent);
+        result_table = order_by(manager, child_tables[0], op, indent);
         break;
 
     default:
         break;
     }
     std::cout << indent << "------------------------" << std::endl;
+    return result_table;
 }
 std::vector<std::string> readQueries(std::string queries_dir)
 {
     std::vector<std::string> test_queries;
-    if (fs::exists(queries_dir) && fs::is_directory(queries_dir)) {
+    if (fs::exists(queries_dir) && fs::is_directory(queries_dir))
+    {
         std::cout << "Reading queries from " << queries_dir << " directory..." << std::endl;
-        for (const auto& entry : fs::directory_iterator(queries_dir)) {
-        if (entry.is_regular_file()) {
-            std::ifstream query_file(entry.path());
-            if (query_file.is_open()) {
-            std::string query_text;
-            std::string line;
-            while (std::getline(query_file, line)) {
-                query_text += line + " ";
-            }
-            if (!query_text.empty()) {
-                test_queries.push_back(query_text);
-                std::cout << "Loaded query from " << entry.path().filename() << std::endl;
-            }
-            query_file.close();
-            } else {
-            std::cerr << "Failed to open " << entry.path() << std::endl;
+        for (const auto &entry : fs::directory_iterator(queries_dir))
+        {
+            if (entry.is_regular_file())
+            {
+                std::ifstream query_file(entry.path());
+                if (query_file.is_open())
+                {
+                    std::string query_text;
+                    std::string line;
+                    while (std::getline(query_file, line))
+                    {
+                        query_text += line + " ";
+                    }
+                    if (!query_text.empty())
+                    {
+                        test_queries.push_back(query_text);
+                        std::cout << "Loaded query from " << entry.path().filename() << std::endl;
+                    }
+                    query_file.close();
+                }
+                else
+                {
+                    std::cerr << "Failed to open " << entry.path() << std::endl;
+                }
             }
         }
-        }
-    } else {
+    }
+    else
+    {
         std::cerr << "Test queries directory not found: " << queries_dir << std::endl;
         return {};
     }
     return test_queries;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     try
     {
@@ -469,10 +529,10 @@ int main(int argc, char* argv[])
         db_manager.listAllTables();
 
         // Create a vector to store test queries
-        
+
         // Read queries from files in test_queries directory
         std::string queries_dir = "./test_queries";
-        std::vector<std::string>  test_queries=readQueries(queries_dir);
+        std::vector<std::string> test_queries = readQueries(queries_dir);
 
         std::cout << "=========================================" << std::endl;
         // std::cout << "=========================================" << std::endl;
@@ -496,7 +556,13 @@ int main(int argc, char* argv[])
             std::cout << std::endl;
         }
         std::cout << "=========================================" << std::endl;
-        std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // db_manager.printCurrentBatch("employees", 10, 30);
+
+        std::shared_ptr<Table> table = db_manager.getTable("employees");
+        std::cout << table->getColumns().size() << '\n';
+        std::cout << table->getProjectedColumnNames().size()<< '\n';
+        std::cout << "=========================================" << std::endl;
     }
     catch (std::exception &e)
     {

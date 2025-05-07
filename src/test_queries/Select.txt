@@ -1,1 +1,1 @@
-SELECT SUM(salary),COUNT(employees.name), avg(salary), max(salary), MIN(salary) FROM employees WHERE salary>500000 and name='mostafa'
+SELECT salary, id, dep_id FROM employees, departments  WHERE salary>5000 and departments.dep_id = employees.department_id

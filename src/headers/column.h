@@ -20,7 +20,7 @@ public:
     // The value a filter can check against (supports all column types)
     using FilterValue = std::variant<float, std::string,int64_t>;
     
-    FilterCondition(const std::string& column_name, FilterOperator op, FilterValue value)
+    FilterCondition(const std::string& column_name, ComparisonOperator op, FilterValue value)
         : column_name(column_name), op(op), value(std::move(value)) {}
     
     // Evaluate the condition against a value from a table row
@@ -31,7 +31,7 @@ public:
 
 private:
     std::string column_name;  // Name of column to filter on
-    FilterOperator op;        // Comparison operator
+    ComparisonOperator op;        // Comparison operator
     FilterValue value;        // Value to compare against
 };
 
@@ -69,7 +69,7 @@ private:
 
     bool on_gpu;
 
-    DeviceStruct* cpu_struct_ptr; // Pointer to CPU struct, the struct
+    DeviceStruct* cpu_struct_ptr = nullptr; // Pointer to CPU struct, the struct
 
 public:
     ColumnBatch(ColumnType type, size_t expected_rows);
@@ -85,6 +85,8 @@ public:
     const std::string &getString(size_t row_idx) const;
     int64_t getDateAsInt64(size_t row_idx) const;
     std::chrono::system_clock::time_point getDate(size_t row_idx) const;
+    size_t getNumRows() const { return num_rows; }
+
 
     // GPU operations (stubs to be implemented with actual CUDA code)
     bool transferToGPU();
@@ -95,6 +97,7 @@ public:
     size_t size() const;
     ColumnType getType() const;
     bool isOnGPU() const;
+    std::string toString(size_t row_idx) const;
 };
 
 #endif

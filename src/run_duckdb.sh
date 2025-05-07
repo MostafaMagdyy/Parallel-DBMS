@@ -15,6 +15,7 @@ nvcc -std=c++17 -arch=sm_86 -o sql \
   headers/device_struct.cpp \
   cuda/aggregate.o \
   operators/aggregate.cpp \
+  operators/join.cpp \
   -I$DUCKDB_INCLUDE -I. \
   -L$DUCKDB_LIB -lduckdb -lcudart \
   -Xlinker -rpath=$DUCKDB_LIB

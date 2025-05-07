@@ -25,12 +25,13 @@ private:
     size_t batch_size;                                  // Number of rows to read in one batch
     std::string file_path;                              // Path to the CSV file
     std::streampos last_file_pos;                       // Last file position for resuming reads
+    size_t number_of_rows;                                 // Number of rows read so far
 
     std::string order_by_column; 
     // Current batch information
     size_t current_row;                                      // Current row in the file
     bool has_more_data;                                      // Flag to indicate if there's more data to read
-    std::vector<std::unique_ptr<ColumnBatch>> current_batch; // Current batch of data
+    std::vector<std::shared_ptr<ColumnBatch>> current_batch; // Current batch of data
     std::vector<FilterCondition> filters;
     std::unordered_map<size_t, size_t> projected_columns_map; 
     void printRows(size_t start_row, size_t end_row, size_t max_string_length);
@@ -49,12 +50,15 @@ private:
 
 
     bool readNextBatch();
+    void saveCurrentBatch();
     void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30);
     std::vector<std::string> getProjectedColumnNames() const;
+    std::vector<size_t> getProjectedColumnIndices() const;
+    std::string getColumnName(size_t column_index) const;
     // Accessors
     const std::string &getName() const { return name; }
     const std::vector<ColumnMetadata> &getColumns() const { return columns; }
-    size_t getColumnCount() const { return columns.size(); }
+    size_t getColumnCount() const { return projected_columns_map.size(); }
     bool hasMoreData() const { return has_more_data; }
     size_t getCurrentBatchSize() const;
     int64_t parseDate(const std::string& dateStr) const; 
@@ -62,6 +66,13 @@ private:
     ColumnBatch *getColumnBatch(const std::string &column_name);
     ColumnBatch *getColumnBatch(size_t column_index);
     bool transferBatchToGPU();
+    void createCSVHeaders();
+    size_t getColumnIndexProjected(const std::string &column_name);
+    size_t getColumnIndexOriginal(const std::string &column_name);
+    std::vector<std::shared_ptr<ColumnBatch>> getCurrentBatch() const { return current_batch; }
+    void resetFilePositionToStart();
+
+    void addResultBatch(void **result_table_batches, size_t num_rows);
     friend class DuckDBManager;
 };
 

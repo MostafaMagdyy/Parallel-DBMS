@@ -171,7 +171,7 @@ void ColumnBatch::freeGpuMemory()
 {
     // To be implemented with CUDA
     // Free the GPU memory if allocated
-    if (cpu_struct_ptr)
+    if (cpu_struct_ptr != nullptr)
     {
         DeviceStruct::deleteStruct(*this->cpu_struct_ptr); // This is a unique_ptr, so it will automatically free the memory from the GPU
         delete this->cpu_struct_ptr;
@@ -193,17 +193,17 @@ bool FilterCondition::evaluate(const FilterValue &row_value) const
         auto row_val = std::get<std::decay_t<decltype(filter_val)>>(row_value);
 
         switch (op) {
-            case FilterOperator::EQUALS:
+            case ComparisonOperator::EQUALS:
                 return row_val == filter_val;
-            case FilterOperator::NOT_EQUALS:
+            case ComparisonOperator::NOT_EQUALS:
                 return row_val != filter_val;
-            case FilterOperator::LESS_THAN:
+            case ComparisonOperator::LESS_THAN:
                 return row_val < filter_val;
-            case FilterOperator::LESS_THAN_EQUALS:
+            case ComparisonOperator::LESS_THAN_EQUALS:
                 return row_val <= filter_val;
-            case FilterOperator::GREATER_THAN:
+            case ComparisonOperator::GREATER_THAN:
                 return row_val > filter_val;
-            case FilterOperator::GREATER_THAN_EQUALS:
+            case ComparisonOperator::GREATER_THAN_EQUALS:
                 return row_val >= filter_val;
             default:
                 return false;
@@ -215,21 +215,36 @@ size_t ColumnBatch::size() const { return num_rows; }
 ColumnType ColumnBatch::getType() const { return type; }
 bool ColumnBatch::isOnGPU() const { return on_gpu; }
 
-std::string operatorToString(FilterOperator op)
+std::string ColumnBatch::toString(size_t row_idx) const
+{
+    switch(type)
+    {
+        case ColumnType::FLOAT:
+            return std::to_string(getDouble(row_idx));
+        case ColumnType::DATE:
+            return std::to_string(getDateAsInt64(row_idx));
+        case ColumnType::STRING:
+            return getString(row_idx);
+        default:
+            return "NULL";
+    }
+}
+
+std::string operatorToString(ComparisonOperator op)
 {
     switch (op)
     {
-    case FilterOperator::EQUALS:
+    case ComparisonOperator::EQUALS:
         return "=";
-    case FilterOperator::NOT_EQUALS:
+    case ComparisonOperator::NOT_EQUALS:
         return "!=";
-    case FilterOperator::LESS_THAN:
+    case ComparisonOperator::LESS_THAN:
         return "<";
-    case FilterOperator::LESS_THAN_EQUALS:
+    case ComparisonOperator::LESS_THAN_EQUALS:
         return "<=";
-    case FilterOperator::GREATER_THAN:
+    case ComparisonOperator::GREATER_THAN:
         return ">";
-    case FilterOperator::GREATER_THAN_EQUALS:
+    case ComparisonOperator::GREATER_THAN_EQUALS:
         return ">=";
     default:
         return "?";

@@ -57,6 +57,9 @@ public:
     void loadTableFromCSV(const std::string &csv_file, size_t batch_size = 0);
     void initializeTablesFromCSVs(const std::string &csv_directory, size_t batch_size = 0);
     bool readNextBatch(const std::string &table_name);
+    void printCurrentBatch(const std::string &table_name, size_t max_rows = 10, size_t max_string_length = 30);
     duckdb::PhysicalOperator *getQueryPlan(const std::string &query);
+    void addTable(std::shared_ptr<Table> table);
+    std::string createTempTableName(const std::string &base_name);
     void listAllTables();
 };
