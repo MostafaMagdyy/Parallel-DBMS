@@ -356,12 +356,17 @@ std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table>
     auto projection = reinterpret_cast<duckdb::PhysicalProjection *>(op);
     std::cout << indent << "Projection Expressions: ";
     std::vector<size_t> projected_columns;
+    std::unordered_set<std::size_t> oringial_columns_set;
     for (size_t i = 0; i < projection->select_list.size(); i++)
     {
         if (i > 0)
             std::cout << ", ";
         std::cout << projection->select_list[i]->ToString() << ' ';
-        projected_columns.push_back(table->getColumnIndexOriginal(projection->select_list[i]->ToString()));
+        std::size_t original_column_index = table->getColumnIndexOriginal(projection->select_list[i]->ToString());
+        if(oringial_columns_set.find(original_column_index) == oringial_columns_set.end()) {    
+            projected_columns.push_back(original_column_index);
+            oringial_columns_set.insert(original_column_index);
+        }
     }
 
     table->addProjectedColumns(projected_columns);
