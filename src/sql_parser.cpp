@@ -355,12 +355,16 @@ std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table>
     // TODO: implement projection
     auto projection = reinterpret_cast<duckdb::PhysicalProjection *>(op);
     std::cout << indent << "Projection Expressions: ";
+    std::vector<size_t> projected_columns;
     for (size_t i = 0; i < projection->select_list.size(); i++)
     {
         if (i > 0)
             std::cout << ", ";
         std::cout << projection->select_list[i]->ToString() << ' ';
+        projected_columns.push_back(table->getColumnIndexOriginal(projection->select_list[i]->ToString()));
     }
+
+    table->addProjectedColumns(projected_columns);
     std::cout << "Projection filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
     return table;
@@ -420,6 +424,8 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
         aggregate_functions.push_back(aggFunc);
         std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
+    
+
 
     std::cout << "Aggregate filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
@@ -557,7 +563,16 @@ int main(int argc, char *argv[])
             std::cout << std::endl;
             // Use our custom traversal function
             std::cout << "Custom tree traversal:" << std::endl;
-            traversePhysicalOperator(db_manager, plan);
+            std::shared_ptr<Table> result_table = traversePhysicalOperator(db_manager, plan);
+            result_table->setSaveFilePath("./temp_csv/" + result_table->getName() + "_result.csv");
+            result_table->resetFilePositionToStart();
+            result_table->createCSVHeaders();
+
+            while(result_table->hasMoreData()) {
+                result_table->readNextBatch();
+                result_table->saveCurrentBatch();
+            }
+         
             std::cout << std::endl;
         }
         std::cout << "=========================================" << std::endl;
@@ -568,6 +583,7 @@ int main(int argc, char *argv[])
         std::cout << table->getColumns().size() << '\n';
         std::cout << table->getProjectedColumnNames().size()<< '\n';
         std::cout << "=========================================" << std::endl;
+
     }
     catch (std::exception &e)
     {

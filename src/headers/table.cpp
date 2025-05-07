@@ -32,7 +32,7 @@ std::string formatMemorySize(size_t size_bytes)
 
 Table::Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
              const std::string &file_path, size_t batch_size)
-    : name(name), columns(columns), file_path(file_path),
+    : name(name), columns(columns), file_path(file_path), save_file_path(file_path),
       batch_size(batch_size), current_row(0), has_more_data(true), last_file_pos(0)
 {
 
@@ -81,6 +81,7 @@ int64_t Table::parseDate(const std::string &dateStr) const
 
 bool Table::readNextBatch()
 {
+    //TODO read next batch previous Join if all data is here instead of reading from file
     std::cout << "reading next batch from " << name << std::endl;
     if (!has_more_data)
     {
@@ -240,19 +241,20 @@ bool Table::readNextBatch()
 }
 void Table::saveCurrentBatch()
 {
+    // TODO don't save untill we hit a certain limit
     if (current_batch.empty())
     {
         std::cout << "No batch to save" << std::endl;
         return;
     }
-    std::ofstream file(file_path, std::ios::app);
+    std::ofstream file(save_file_path, std::ios::app);
     if (!file.is_open())
     {
-        std::cerr << "[ERROR] Failed to open file: " << file_path << std::endl;
+        std::cerr << "[ERROR] Failed to open file: " << save_file_path << std::endl;
         return;
     }
 
-    std::cout << "Saving current batch to file: " << file_path << std::endl;
+    std::cout << "Saving current batch to file: " << save_file_path << std::endl;
     std::cout << "Current batch size: " << current_batch[0]->size() << std::endl;
     for (size_t row_idx = 0; row_idx < current_batch[0]->size(); row_idx++)
     {
@@ -515,17 +517,17 @@ bool Table::transferBatchToGPU()
 
 void Table::createCSVHeaders()
 {
-    std::ofstream file(file_path);
+    std::ofstream file(save_file_path);
     if (!file.is_open())
     {
-        std::cerr << "[ERROR] Failed to open file: " << file_path << std::endl;
+        std::cerr << "[ERROR] Failed to open file: " << save_file_path << std::endl;
         return;
     }
 
-    for (size_t i = 0; i < columns.size(); i++)
+    for (size_t i = 0; i < projected_to_original_map.size(); i++)
     {
         std::string type;
-        switch (columns[i].type)
+        switch (columns[projected_to_original_map[i]].type)
         {
         case ColumnType::FLOAT:
             type = "N";
@@ -540,8 +542,8 @@ void Table::createCSVHeaders()
             throw std::runtime_error("Unsupported column type: " + columnTypeToString(columns[i].type));
         }
 
-        file << columns[i].name << " (" << type << ") ";
-        if (i != columns.size() - 1)
+        file << columns[projected_to_original_map[i]].name << " (" << type << ") ";
+        if (i != projected_to_original_map.size() - 1)
         {
             file << ", ";
         }
@@ -581,6 +583,11 @@ void Table::resetFilePositionToStart()
     current_row = 0;
     last_file_pos = 0;
     has_more_data = true;
+}
+
+void Table::setSaveFilePath(const std::string &file_path)
+{
+    save_file_path = file_path;
 }
 
 void Table::addResultBatch(void **result_table_batches, size_t num_rows)

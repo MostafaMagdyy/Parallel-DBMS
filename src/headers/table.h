@@ -24,6 +24,7 @@ private:
     std::unordered_map<std::string, size_t> column_map; // Maps column names to their indices
     size_t batch_size;                                  // Number of rows to read in one batch
     std::string file_path;                              // Path to the CSV file
+    std::string save_file_path;
     std::streampos last_file_pos;                       // Last file position for resuming reads
     size_t number_of_rows;                                 // Number of rows read so far
 
@@ -73,6 +74,7 @@ private:
     std::vector<std::shared_ptr<ColumnBatch>> getCurrentBatch() const { return current_batch; }
     void resetFilePositionToStart();
 
+    void setSaveFilePath(const std::string &file_path);
     void addResultBatch(void **result_table_batches, size_t num_rows);
     friend class DuckDBManager;
 };
