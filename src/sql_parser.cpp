@@ -597,15 +597,15 @@ int main(int argc, char *argv[])
             // Use our custom traversal function
             std::cout << "Custom tree traversal:" << std::endl;
             std::shared_ptr<Table> result_table = traversePhysicalOperator(db_manager, plan);
-            result_table->setSaveFilePath("./temp_csv/" + result_table->getName() + "_result.csv");
-            result_table->resetFilePositionToStart();
-            result_table->createCSVHeaders();
-
-            while(result_table->hasMoreData()) {
-                result_table->readNextBatch();
-                result_table->saveCurrentBatch();
+            if(plan->type==duckdb::PhysicalOperatorType::PROJECTION) {
+                result_table->setSaveFilePath("./temp_csv/" + result_table->getName() + "_result.csv");
+                result_table->resetFilePositionToStart();
+                result_table->createCSVHeaders();
+                while(result_table->hasMoreData()) {
+                    result_table->readNextBatch();
+                    result_table->saveCurrentBatch();
+                }   
             }
-         
             std::cout << std::endl;
         }
         std::cout << "=========================================" << std::endl;
