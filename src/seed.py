@@ -87,7 +87,7 @@ def main():
                 {'name': 'hire_date', 'type': 'D'},
                 {'name': 'department_id', 'type': 'N'}
             ],
-            'num_rows': 5
+            'num_rows': 1000
         },
         {
             'name': 'departments',
@@ -114,4 +114,29 @@ def main():
         generate_table_data(table['name'], table['columns'], table['num_rows'], directory)
 
 if __name__ == "__main__":
+    # Call the main function to generate data
     main()
+    
+    # Calculate and print salary statistics
+    employee_file = "./csv_data/employees.csv"
+    if os.path.exists(employee_file):
+        min_salary = float('inf')
+        max_salary = float('-inf')
+        sum_salary = 0
+        count = 0
+        
+        with open(employee_file, mode='r') as file:
+            reader = csv.reader(file)
+            next(reader)  # Skip the header row
+            for row in reader:
+                salary = float(row[2])  # Salary is in the third column (index 2)
+                min_salary = min(min_salary, salary)
+                max_salary = max(max_salary, salary)
+                sum_salary += salary
+                count += 1
+        
+        print(f"\nSalary Statistics:")
+        print(f"Min Salary: ${min_salary:.2f}")
+        print(f"Max Salary: ${max_salary:.2f}")
+        print(f"Sum of all Salaries: ${sum_salary:.2f}")
+        print(f"Average Salary: ${sum_salary/count:.2f}")

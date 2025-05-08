@@ -428,17 +428,39 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
         aggregate_functions.push_back(aggFunc);
         std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
-
-    std::vector<void *> results = aggregate(table, aggregate_functions, column_names);
-    for(size_t i = 0; i < results.size(); i++) {
-        std::cout << "agg Result " << i << ": " << *((float *)results[i]) << std::endl;
+    std::vector<ColumnMetadata> columns = table->getColumns();
+    for(auto &col : columns) {
+        std::cout << "Column name: " << col.name << std::endl;
     }
-
-    std::cout << "is aggregate functions size equal to column names size? " << (aggregate_functions.size() == column_names.size() ? "yes" : "no") << '\n';
-
-    std::cout << "Aggregate filter not implemented, original table returned" << std::endl;
-    std::cout << std::endl;
-    return table;
+    std::vector<void *> results = aggregate(table, aggregate_functions, column_names);
+    std::vector<ColumnMetadata> result_columns;
+    std::vector<std::string> result_column_names;
+    for (size_t i = 0; i < column_names.size(); i++)
+    {
+        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions[i]) + "(" + column_names[i]+")");
+    }
+    for (size_t i = 0; i < results.size(); i++)
+    {
+        std::string duckdb_type = "";
+        bool is_primary_key = false;; 
+        size_t element_size = 0;
+        
+        ColumnMetadata column(result_column_names[i], 
+                           columns[table->getColumnIndexOriginal(column_names[i])].type,
+                           duckdb_type,
+                           is_primary_key,
+                           i
+                        );
+        result_columns.push_back(column);
+    }
+    std::string result_table_name = table->getName() + "_agg" + std::to_string(time(0));
+    std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
+    std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
+    result_table->createCSVHeaders();                                                                                   
+    result_table->addResultBatch(results.data(), 1);
+    result_table->saveCurrentBatch();
+    manager.addTable(result_table);
+    return result_table;
 }
 
 std::shared_ptr<Table> traversePhysicalOperator(DuckDBManager &manager, duckdb::PhysicalOperator *op, int depth = 0)

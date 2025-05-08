@@ -220,8 +220,14 @@ std::string ColumnBatch::toString(size_t row_idx) const
     {
         case ColumnType::FLOAT:
             return std::to_string(getDouble(row_idx));
-        case ColumnType::DATE:
-            return std::to_string(getDateAsInt64(row_idx));
+        case ColumnType::DATE: {
+            auto time_point = getDate(row_idx);
+            std::time_t time = std::chrono::system_clock::to_time_t(time_point);
+            std::tm tm = *std::localtime(&time);
+            char buffer[32];
+            std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm);
+            return std::string(buffer);
+        }
         case ColumnType::STRING:
             return getString(row_idx);
         default:

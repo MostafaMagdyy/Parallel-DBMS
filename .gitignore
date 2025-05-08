@@ -33,3 +33,7 @@
 test_duckdb
 src/duckdb/
 src/csv_data/*.csv
+src/temp_csv/*.csv
+src/SampleTest/*.txt
+src/SampleTest/data/*.csv
+src/SampleTest/*.csv
