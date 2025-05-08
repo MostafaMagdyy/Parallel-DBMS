@@ -28,7 +28,6 @@
 #include <duckdb/planner/planner.hpp>
 #include <duckdb/optimizer/optimizer.hpp>
 
-#include <chrono>
 #include <sys/resource.h>
 #include "headers/column.h"
 #include "headers/table.h"
@@ -413,24 +412,29 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
 {
 
     // TODO implement aggreagate on the passed table corrrectly.
-    auto aggregate = reinterpret_cast<duckdb::PhysicalUngroupedAggregate *>(op);
+    auto aggregate_op = reinterpret_cast<duckdb::PhysicalUngroupedAggregate *>(op);
 
     std::vector<std::string> column_names = getColumnNamesFromProjection(op);
     std::cout << indent << "Aggregate Functions: ";
 
     std::vector<AggregateFunctionType> aggregate_functions;
 
-    for (size_t i = 0; i < aggregate->aggregates.size(); i++)
+    for (size_t i = 0; i < aggregate_op->aggregates.size(); i++)
     {
         if (i > 0)
             std::cout << ", ";
-        std::cout << aggregate->aggregates[i]->ToString();
-        AggregateFunctionType aggFunc = parseAggregateExpression(aggregate->aggregates[i]->ToString()); // we will assume that index #0, #1 is always ordered so we don't have to parse it ourselves
+        std::cout << aggregate_op->aggregates[i]->ToString();
+        AggregateFunctionType aggFunc = parseAggregateExpression(aggregate_op->aggregates[i]->ToString()); // we will assume that index #0, #1 is always ordered so we don't have to parse it ourselves
         aggregate_functions.push_back(aggFunc);
         std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
-    
 
+    std::vector<void *> results = aggregate(table, aggregate_functions, column_names);
+    for(size_t i = 0; i < results.size(); i++) {
+        std::cout << "agg Result " << i << ": " << *((float *)results[i]) << std::endl;
+    }
+
+    std::cout << "is aggregate functions size equal to column names size? " << (aggregate_functions.size() == column_names.size() ? "yes" : "no") << '\n';
 
     std::cout << "Aggregate filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
@@ -536,6 +540,8 @@ std::vector<std::string> readQueries(std::string queries_dir)
 
 int main(int argc, char *argv[])
 {
+    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+   
     try
     {
         auto db_manager = DuckDBManager::create();
@@ -595,5 +601,9 @@ int main(int argc, char *argv[])
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
+
+    std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+    std::cout << "total time taken: " << duration.count() << " seconds" << std::endl;
     return 0;
 }

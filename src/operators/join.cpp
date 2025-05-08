@@ -117,6 +117,7 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                    std::vector<JoinCondition> join_conditions,
                    std::shared_ptr<Table> result_table)
 {
+    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     while (left_table->hasMoreData())
     {
         left_table->readNextBatch();
@@ -128,7 +129,7 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
             right_table->readNextBatch();
             std::vector<std::shared_ptr<ColumnBatch>> right_batches = right_table->getCurrentBatch();
             std::vector<bool> matches(left_batches[0]->getNumRows() * right_batches[0]->getNumRows(), false);
-
+            
             for (size_t i = 0; i < left_table->getCurrentBatchSize(); i++)
             {
                 for (size_t j = 0; j < right_table->getCurrentBatchSize(); j++)
@@ -152,4 +153,7 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
         }
         right_table->resetFilePositionToStart();
     }
+    std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+    std::cout << "time taken by join duration: " << duration.count() << " seconds" << std::endl;
 }

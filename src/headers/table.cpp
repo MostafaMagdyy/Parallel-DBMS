@@ -471,28 +471,6 @@ ColumnBatch *Table::getColumnBatch(const std::string &column_name)
     }
     return current_batch[it->second].get();
 }
-std::string Table::computeAggregate(const std::string &column_name, AggregateType agg_type)
-{
-    // Special case for COUNT(*) - count rows in table
-    if (column_name == "*" && agg_type == AGG_COUNT)
-    {
-        // AggregateResult result;
-        // result.int_val = num_rows;
-        // return to_string(result.int_val);
-        return "ALL";
-    }
-
-    // Find the requested column
-    ColumnBatch *column = getColumnBatch(column_name);
-    std::cout << "Computing aggregate for column: " << column_name << std::endl;
-    if (!column)
-    {
-        throw std::runtime_error("Column not found: " + column_name);
-    }
-
-    // Call the column's computeAggregate function
-    return column->computeAggregate(agg_type);
-}
 
 // Column access by index
 ColumnBatch *Table::getColumnBatch(size_t column_index)
@@ -585,6 +563,11 @@ void Table::resetFilePositionToStart()
     has_more_data = true;
 }
 
+ColumnType Table::getColumnType(const std::string &column_name) 
+{
+    return columns[column_map[column_name]].type;
+}
+
 void Table::setSaveFilePath(const std::string &file_path)
 {
     save_file_path = file_path;
@@ -612,21 +595,21 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
             switch (current_batch[column_idx]->getType())
             {
             case ColumnType::FLOAT:
-                std::cout << "here1" << '\n';
+                // std::cout << "here1" << '\n';
                 current_batch[column_idx]->addDouble(static_cast<float *>(result_table_batches[column_idx])[row_idx]);
                 break;
             case ColumnType::STRING:
                 // current_batch[j]->addString(static_cast<std::string>(result_table_batches[i][j]));
                 // TODO: add string to column batch
-                std::cout << "here2" << '\n';
+                // std::cout << "here2" << '\n';
                 throw std::runtime_error("String column not supported in result batch");
                 break;
             case ColumnType::DATE:
-                std::cout << "here3" << '\n';
+                // std::cout << "here3" << '\n';
                 current_batch[column_idx]->addDate(static_cast<int64_t *>(result_table_batches[column_idx])[row_idx]);
                 break;
             default:
-                std::cout << "here4" << '\n';
+                // std::cout << "here4" << '\n';
                 throw std::runtime_error("Unsupported column type: " + columnTypeToString(current_batch[column_idx]->getType()));
             }
         }

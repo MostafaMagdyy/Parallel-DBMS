@@ -86,12 +86,11 @@ public:
     int64_t getDateAsInt64(size_t row_idx) const;
     std::chrono::system_clock::time_point getDate(size_t row_idx) const;
     size_t getNumRows() const { return num_rows; }
-
+    DeviceStruct* getCpuStructPtr() const { return cpu_struct_ptr; }
 
     // GPU operations (stubs to be implemented with actual CUDA code)
     bool transferToGPU();
     void freeGpuMemory();
-    std::string computeAggregate(AggregateType agg_type);
 
     // Utilities
     size_t size() const;

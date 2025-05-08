@@ -3,22 +3,25 @@ DUCKDB_INCLUDE="./duckdb/src/include"
 DUCKDB_LIB="./duckdb/build/release/src" 
 
 # Compile CUDA files first
-nvcc -std=c++17 -arch=sm_86 -c cuda/aggregate.cu -o cuda/aggregate.o
+nvcc -std=c++17 -arch=sm_75 -dc -o cuda/aggregate.o \
+  cuda/aggregate.cu \
+  -I. -I$DUCKDB_INCLUDE
 
 # Then compile C++ files and link everything
-nvcc -std=c++17 -arch=sm_86 -o sql \
-  sql_parser.cpp \
+nvcc -std=c++17 -arch=sm_75 -o sql \
+  cuda/aggregate.o \
   headers/column.cpp \
   headers/table.cpp \
   headers/duckdb_manager.cpp \
   headers/enums.cpp \
   headers/device_struct.cpp \
-  cuda/aggregate.o \
   operators/aggregate.cpp \
   operators/join.cpp \
+  sql_parser.cpp \
   -I$DUCKDB_INCLUDE -I. \
   -L$DUCKDB_LIB -lduckdb -lcudart \
-  -Xlinker -rpath=$DUCKDB_LIB
+  -Xlinker -rpath=$DUCKDB_LIB \
+  -rdc=true
 
 # Check if compilation was successful
 if [ $? -ne 0 ]; then

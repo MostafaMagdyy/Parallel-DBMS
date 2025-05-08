@@ -42,7 +42,7 @@ private:
     
     public:
     Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
-        const std::string &file_path, size_t batch_size = 10000);
+        const std::string &file_path, size_t batch_size = 1);
         bool passesFilters(const std::vector<std::string>& row_values) const;
         const std::vector<FilterCondition>& getFilters() const { return filters; }
         void addFilter(const FilterCondition& condition);
@@ -64,7 +64,6 @@ private:
     bool hasMoreData() const { return has_more_data; }
     size_t getCurrentBatchSize() const;
     int64_t parseDate(const std::string& dateStr) const; 
-    std::string computeAggregate(const std::string& column_name, AggregateType agg_type);
     ColumnBatch *getColumnBatch(const std::string &column_name);
     ColumnBatch *getColumnBatch(size_t column_index);
     bool transferBatchToGPU();
@@ -73,6 +72,8 @@ private:
     size_t getColumnIndexOriginal(const std::string &column_name);
     std::vector<std::shared_ptr<ColumnBatch>> getCurrentBatch() const { return current_batch; }
     void resetFilePositionToStart();
+
+    ColumnType getColumnType(const std::string &column_name) ;
 
     void setSaveFilePath(const std::string &file_path);
     void addResultBatch(void **result_table_batches, size_t num_rows);

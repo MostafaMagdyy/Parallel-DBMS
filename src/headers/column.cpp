@@ -1,7 +1,5 @@
 #include "column.h"
 #include <stdexcept>
-#include "cuda/aggregate.cuh"
-#include "cuda/aggregate_helper.h"
 #include "device_struct.h"
 #include <iomanip>
 #include <sstream>
@@ -274,37 +272,4 @@ std::string FilterCondition::toString() const
         } }, value);
 
     return ss.str();
-}
-std::string ColumnBatch::computeAggregate(AggregateType agg_type)
-{
-    AggregateResult result;
-    if (num_rows == 0)
-    {
-        std::cerr << "Warning: Attempting to aggregate empty column" << std::endl;
-        return "NULL";
-    }
-    ValueType val_type;
-    switch (type)
-    {
-    case ColumnType::FLOAT:
-        val_type = TYPE_FLOAT;
-        break;
-    case ColumnType::DATE:
-        val_type = TYPE_DATE;
-        break;
-    default:
-        throw std::runtime_error("Unsupported column type for aggregation");
-    }
-    void *host_ptr = nullptr;
-    if (type == ColumnType::FLOAT)
-    {
-        host_ptr = float_data.data();
-    }
-    else
-    {
-        host_ptr = date_data.data();
-    }
-    ::computeAggregate(host_ptr, num_rows, agg_type, val_type, result);
-    std::string formatted = formatAggregateResult(result, type, agg_type);
-    return formatted;
 }

@@ -26,7 +26,7 @@ enum class ComparisonOperator {
 
 template<typename T>
 bool compareValues(T a, T b, ComparisonOperator op) {
-    std :: cout << "comparing " << a << " and " << b << std :: endl; 
+    // std :: cout << "comparing " << a << " and " << b << std :: endl; 
     switch(op) {
         case ComparisonOperator::EQUALS:
             return a == b;
