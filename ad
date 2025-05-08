@@ -1,0 +1,91 @@
+[1mdiff --git a/src/duckdb b/src/duckdb[m
+[1m--- a/src/duckdb[m
+[1m+++ b/src/duckdb[m
+[36m@@ -1 +1 @@[m
+[31m-Subproject commit 86304143881725ff8d47205885c8c9554630c583[m
+[32m+[m[32mSubproject commit 86304143881725ff8d47205885c8c9554630c583-dirty[m
+[1mdiff --git a/src/headers/table.cpp b/src/headers/table.cpp[m
+[1mindex 57f7de1..f45b0fa 100644[m
+[1m--- a/src/headers/table.cpp[m
+[1m+++ b/src/headers/table.cpp[m
+[36m@@ -85 +85 @@[m [mbool Table::readNextBatch()[m
+[31m-    std::cout << "reading next batch from " << name << std::endl;[m
+[32m+[m[32m    std::cout << "reading next batch from " << name << "with batch size " << batch_size << std::endl;[m
+[1mdiff --git a/src/operators/aggregate.cpp b/src/operators/aggregate.cpp[m
+[1mindex 330ef01..c198b25 100644[m
+[1m--- a/src/operators/aggregate.cpp[m
+[1m+++ b/src/operators/aggregate.cpp[m
+[36m@@ -215,0 +216 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[32m+[m[32m        {[m
+[36m@@ -217 +218,3 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[31m-            results.push_back(column_aggregate_results[column_names[i]][idx]);[m
+[32m+[m[32m            void* originalValue = column_aggregate_results[column_names[i]][idx];[m
+[32m+[m[32m            float* newValue = new float(*(float*)originalValue);[m
+[32m+[m[32m            results.push_back((void*)newValue);[m
+[36m@@ -218,0 +222,2 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[32m+[m[32m        }[m
+[32m+[m
+[36m@@ -219,0 +225 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[32m+[m[32m        {[m
+[36m@@ -222,0 +229 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[32m+[m[32m        }[m
+[36m@@ -223,0 +231 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[32m+[m[32m        {[m
+[36m@@ -226,0 +235 @@[m [mstd::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat[m
+[32m+[m[32m        }[m
+[1mdiff --git a/src/sql b/src/sql[m
+[1mindex bc64a49..8a31f4f 100755[m
+Binary files a/src/sql and b/src/sql differ
+[1mdiff --git a/src/sql_parser.cpp b/src/sql_parser.cpp[m
+[1mindex 38b49cf..423cf63 100644[m
+[1m--- a/src/sql_parser.cpp[m
+[1m+++ b/src/sql_parser.cpp[m
+[36m@@ -421 +421 @@[m [mstd::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table>[m
+[31m-[m
+[32m+[m[32m    std::vector<AggregateFunctionType> aggregate_functions_temp;[m
+[36m@@ -428 +428,3 @@[m [mstd::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table>[m
+[31m-        aggregate_functions.push_back(aggFunc);[m
+[32m+[m[32m        if(aggFunc==AggregateFunctionType::AVG) aggregate_functions.push_back(AggregateFunctionType::SUM);[m
+[32m+[m[32m        else aggregate_functions.push_back(aggFunc);[m
+[32m+[m[32m        aggregate_functions_temp.push_back(aggFunc);[m
+[36m@@ -440 +442 @@[m [mstd::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table>[m
+[31m-        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions[i]) + "(" + column_names[i]+")");[m
+[32m+[m[32m        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions_temp[i]) + "(" + column_names[i]+")");[m
+[36m@@ -455,0 +458,9 @@[m [mstd::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table>[m
+[32m+[m[32m    for(int i=0;i<aggregate_functions_temp.size();i++) {[m
+[32m+[m[32m        if(aggregate_functions_temp[i] == AggregateFunctionType::AVG) {[m
+[32m+[m[32m            size_t column_batch_size = table->getCurrentBatchSize();[m
+[32m+[m[32m            std::cout<<"From AVG: "<<column_batch_size<<std::endl;[m
+[32m+[m[32m            float value = *(float*)results[i];[m
+[32m+[m[32m            value = value / column_batch_size;[m
+[32m+[m[32m            *(float*)results[i] = value;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[36m@@ -571 +582 @@[m [mint main(int argc, char *argv[])[m
+[31m-        std::string csv_directory = "./csv_data";[m
+[32m+[m[32m        std::string csv_directory = "./SampleTest/data";[m
+[36m@@ -611,3 +622,3 @@[m [mint main(int argc, char *argv[])[m
+[31m-        std::cout << "=========================================" << std::endl;[m
+[31m-        // std::cout << db_manager.readNextBatch("employees") << std::endl;[m
+[31m-        // db_manager.printCurrentBatch("employees", 10, 30);[m
+[32m+[m[32m        // std::cout << "=========================================" << std::endl;[m
+[32m+[m[32m        // // std::cout << db_manager.readNextBatch("employees") << std::endl;[m
+[32m+[m[32m        // // db_manager.printCurrentBatch("employees", 10, 30);[m
+[36m@@ -615,4 +626,4 @@[m [mint main(int argc, char *argv[])[m
+[31m-        std::shared_ptr<Table> table = db_manager.getTable("employees");[m
+[31m-        std::cout << table->getColumns().size() << '\n';[m
+[31m-        std::cout << table->getProjectedColumnNames().size()<< '\n';[m
+[31m-        std::cout << "=========================================" << std::endl;[m
+[32m+[m[32m        // std::shared_ptr<Table> table = db_manager.getTable("employees");[m
+[32m+[m[32m        // std::cout << table->getColumns().size() << '\n';[m
+[32m+[m[32m        // std::cout << table->getProjectedColumnNames().size()<< '\n';[m
+[32m+[m[32m        // std::cout << "=========================================" << std::endl;[m
+[1mdiff --git a/src/test_queries/Select.txt b/src/test_queries/Select.txt[m
+[1mindex 5b1b03f..5a49441 100644[m
+[1m--- a/src/test_queries/Select.txt[m
+[1m+++ b/src/test_queries/Select.txt[m
+[36m@@ -1 +1 @@[m
+[31m-select salary from employees,projects where employees.id=projects.id[m
+\ No newline at end of file[m
+[32m+[m[32mSELECT AVG(e.Salary) AS AverageSalary FROM Employees e, SalesOrders s WHERE e.Employees_id = s.Employees_id AND s.TotalAmount > 200;[m
+\ No newline at end of file[m

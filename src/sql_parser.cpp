@@ -418,14 +418,16 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     std::cout << indent << "Aggregate Functions: ";
 
     std::vector<AggregateFunctionType> aggregate_functions;
-
+    std::vector<AggregateFunctionType> aggregate_functions_temp;
     for (size_t i = 0; i < aggregate_op->aggregates.size(); i++)
     {
         if (i > 0)
             std::cout << ", ";
         std::cout << aggregate_op->aggregates[i]->ToString();
         AggregateFunctionType aggFunc = parseAggregateExpression(aggregate_op->aggregates[i]->ToString()); // we will assume that index #0, #1 is always ordered so we don't have to parse it ourselves
-        aggregate_functions.push_back(aggFunc);
+        if(aggFunc==AggregateFunctionType::AVG) aggregate_functions.push_back(AggregateFunctionType::SUM);
+        else aggregate_functions.push_back(aggFunc);
+        aggregate_functions_temp.push_back(aggFunc);
         std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
     std::vector<ColumnMetadata> columns = table->getColumns();
@@ -437,7 +439,7 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     std::vector<std::string> result_column_names;
     for (size_t i = 0; i < column_names.size(); i++)
     {
-        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions[i]) + "(" + column_names[i]+")");
+        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions_temp[i]) + "(" + column_names[i]+")");
     }
     for (size_t i = 0; i < results.size(); i++)
     {
@@ -452,6 +454,15 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
                            i
                         );
         result_columns.push_back(column);
+    }
+    for(int i=0;i<aggregate_functions_temp.size();i++) {
+        if(aggregate_functions_temp[i] == AggregateFunctionType::AVG) {
+            size_t column_batch_size = table->getCurrentBatchSize();
+            std::cout<<"From AVG: "<<column_batch_size<<std::endl;
+            float value = *(float*)results[i];
+            value = value / column_batch_size;
+            *(float*)results[i] = value;
+        }
     }
     std::string result_table_name = table->getName() + "_agg" + std::to_string(time(0));
     std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
@@ -568,7 +579,7 @@ int main(int argc, char *argv[])
     {
         auto db_manager = DuckDBManager::create();
         // Initialize tables from CSV files in a directory (schema only)
-        std::string csv_directory = "./csv_data";
+        std::string csv_directory = "./SampleTest/data";
         db_manager.initializeTablesFromCSVs(csv_directory);
         db_manager.listAllTables();
 
@@ -608,14 +619,14 @@ int main(int argc, char *argv[])
             }
             std::cout << std::endl;
         }
-        std::cout << "=========================================" << std::endl;
-        // std::cout << db_manager.readNextBatch("employees") << std::endl;
-        // db_manager.printCurrentBatch("employees", 10, 30);
+        // std::cout << "=========================================" << std::endl;
+        // // std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // // db_manager.printCurrentBatch("employees", 10, 30);
 
-        std::shared_ptr<Table> table = db_manager.getTable("employees");
-        std::cout << table->getColumns().size() << '\n';
-        std::cout << table->getProjectedColumnNames().size()<< '\n';
-        std::cout << "=========================================" << std::endl;
+        // std::shared_ptr<Table> table = db_manager.getTable("employees");
+        // std::cout << table->getColumns().size() << '\n';
+        // std::cout << table->getProjectedColumnNames().size()<< '\n';
+        // std::cout << "=========================================" << std::endl;
 
     }
     catch (std::exception &e)

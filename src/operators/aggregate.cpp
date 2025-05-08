@@ -213,17 +213,26 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
         switch (aggregate_functions[i])
         {
         case AggregateFunctionType::SUM:
+        {
             idx = std::find(column_aggregate_functions[column_names[i]].begin(), column_aggregate_functions[column_names[i]].end(), AggregateFunctionType::SUM) - column_aggregate_functions[column_names[i]].begin();
-            results.push_back(column_aggregate_results[column_names[i]][idx]);
+            void* originalValue = column_aggregate_results[column_names[i]][idx];
+            float* newValue = new float(*(float*)originalValue);
+            results.push_back((void*)newValue);
             break;
+        }
+
         case AggregateFunctionType::MAX:
+        {
             idx = std::find(column_aggregate_functions[column_names[i]].begin(), column_aggregate_functions[column_names[i]].end(), AggregateFunctionType::MAX) - column_aggregate_functions[column_names[i]].begin();
             results.push_back(column_aggregate_results[column_names[i]][idx]);
             break;
+        }
         case AggregateFunctionType::MIN:
+        {
             idx = std::find(column_aggregate_functions[column_names[i]].begin(), column_aggregate_functions[column_names[i]].end(), AggregateFunctionType::MIN) - column_aggregate_functions[column_names[i]].begin();
             results.push_back(column_aggregate_results[column_names[i]][idx]);
             break;
+        }
         default:    
             throw "Unsupported aggregate function: " + column_names[i];
         }
