@@ -38,6 +38,18 @@
 #include "operators/join.h"
 
 namespace fs = std::filesystem;
+#define OUTPUT_DIR "./output/"
+
+void createOutputDir() {
+    try {
+        if (!fs::exists(OUTPUT_DIR)) {
+            std::cout << "Creating output directory: " << OUTPUT_DIR << std::endl;
+            fs::create_directories(OUTPUT_DIR);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error creating output directory: " << e.what() << std::endl;
+    }
+}
 
 std::shared_ptr<Table> table_scan(DuckDBManager &manager, duckdb::PhysicalOperator *op, std::string indent)
 {
@@ -168,17 +180,6 @@ std::shared_ptr<Table> table_scan(DuckDBManager &manager, duckdb::PhysicalOperat
     }
     std::cout << std::endl;
     table->addProjectedColumns(projected_ids);
-    // Testing Aggregate ON GPU
-    // if (table->getName() == "emplyees")
-    // {
-    //     table->readNextBatch();
-    //     std::cout << "GPU STARTED" << std::endl;
-    //     std::string result = table->computeAggregate("salary", AggregateType::AGG_MAX);
-    //     std::cout << indent << "Aggregate Result: " << result << std::endl;
-    //     std::cout << "GPU FINISHED" << std::endl;
-    //     table->printCurrentBatch();
-    // }
-
     if (!params.empty())
     {
         std::cout << indent << "Parameters:" << std::endl;
@@ -313,7 +314,7 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
 
 
     std::string result_table_name = left->getName() + "_" + right->getName() + "_join" + std::to_string(time(0));
-    std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
+    std::string result_table_path = OUTPUT_DIR + result_table_name + ".csv";
     for(size_t i = 0; i < result_columns.size(); i++) {
         std::cout << "result column: " << result_columns[i].name << std::endl;
     }
@@ -465,7 +466,7 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
         }
     }
     std::string result_table_name = table->getName() + "_agg" + std::to_string(time(0));
-    std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
+    std::string result_table_path = OUTPUT_DIR+ result_table_name + ".csv";
     std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
     result_table->createCSVHeaders();                                                                                   
     result_table->addResultBatch(results.data(), 1);
@@ -573,70 +574,61 @@ std::vector<std::string> readQueries(std::string queries_dir)
 
 int main(int argc, char *argv[])
 {
-    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
-   
-    try
-    {
+    if (argc != 3) {
+        std::cerr << "Usage: " << argv[0]
+                  << " <csv_directory> \"<SQL query>\"\n";
+        return 1;
+    }
+    const std::string csv_directory = argv[1];
+    const std::string query         = argv[2];
+    createOutputDir();
+
+    std::chrono::high_resolution_clock::time_point start_time =
+        std::chrono::high_resolution_clock::now();
+    
+
+    try {
+        // 1) initialize schemas from CSV files
         auto db_manager = DuckDBManager::create();
-        // Initialize tables from CSV files in a directory (schema only)
-        std::string csv_directory = "./SampleTest/data";
         db_manager.initializeTablesFromCSVs(csv_directory);
         db_manager.listAllTables();
 
-        // Create a vector to store test queries
+        // 2) run exactly the one query
+        std::cout << "\nPlanning query: " << query << "\n\n";
 
-        // Read queries from files in test_queries directory
-        std::string queries_dir = "./test_queries";
-        std::vector<std::string> test_queries = readQueries(queries_dir);
+        // default plan
+        std::cout << "Default plan visualization:\n";
+        auto plan = db_manager.getQueryPlan(query);
+        std::cout << std::endl;
 
-        std::cout << "=========================================" << std::endl;
-        // std::cout << "=========================================" << std::endl;
-        // std::cout << db_manager.readNextBatch("employees") << std::endl;
-        for (auto &query : test_queries)
-        {
-            std::cout << "\n=========================================" << std::endl;
-            std::cout << "Planning query: " << query << std::endl;
-            std::cout << "=========================================\n"
-                      << std::endl;
+        // custom physical traversal & execution
+        std::cout << "Custom tree traversal / execution:\n";
+        auto result_table = traversePhysicalOperator(db_manager, plan);
 
-            // Get the logical plan
-            std::cout << "Default plan visualization:" << std::endl;
-            auto plan = db_manager.getQueryPlan(query);
-            // Print the default tree visualization
-            // plan->Print();
-            std::cout << std::endl;
-            // Use our custom traversal function
-            std::cout << "Custom tree traversal:" << std::endl;
-            std::shared_ptr<Table> result_table = traversePhysicalOperator(db_manager, plan);
-            if(plan->type==duckdb::PhysicalOperatorType::PROJECTION) {
-                result_table->setSaveFilePath("./temp_csv/" + result_table->getName() + "_result.csv");
-                result_table->resetFilePositionToStart();
-                result_table->createCSVHeaders();
-                while(result_table->hasMoreData()) {
-                    result_table->readNextBatch();
-                    result_table->saveCurrentBatch();
-                }   
+        // if it was a projection, dump out CSV
+        if (plan->type == duckdb::PhysicalOperatorType::PROJECTION) {
+            const auto out_path =
+                OUTPUT_DIR + result_table->getName() + "_result.csv";
+            result_table->setSaveFilePath(out_path);
+            result_table->resetFilePositionToStart();
+            result_table->createCSVHeaders();
+            while (result_table->hasMoreData()) {
+                result_table->readNextBatch();
+                result_table->saveCurrentBatch();
             }
-            std::cout << std::endl;
+            std::cout << "Result saved to " << out_path << "\n";
         }
-        // std::cout << "=========================================" << std::endl;
-        // // std::cout << db_manager.readNextBatch("employees") << std::endl;
-        // // db_manager.printCurrentBatch("employees", 10, 30);
-
-        // std::shared_ptr<Table> table = db_manager.getTable("employees");
-        // std::cout << table->getColumns().size() << '\n';
-        // std::cout << table->getProjectedColumnNames().size()<< '\n';
-        // std::cout << "=========================================" << std::endl;
-
-    }
-    catch (std::exception &e)
-    {
-        std::cerr << "Error: " << e.what() << std::endl;
+    } catch (std::exception &e) {
+        std::cerr << "Error: " << e.what() << "\n";
         return 1;
     }
 
-    std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-    std::cout << "total time taken: " << duration.count() << " seconds" << std::endl;
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double total_s =
+        std::chrono::duration_cast<std::chrono::duration<double>>(end_time -
+                                                                  start_time)
+            .count();
+    std::cout << "Total time: " << total_s << "s\n";
+
     return 0;
 }

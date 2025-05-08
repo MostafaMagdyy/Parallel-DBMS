@@ -42,7 +42,7 @@ private:
     
     public:
     Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
-        const std::string &file_path, size_t batch_size = 1);
+        const std::string &file_path, size_t batch_size = 1000000);
         bool passesFilters(const std::vector<std::string>& row_values) const;
         const std::vector<FilterCondition>& getFilters() const { return filters; }
         void addFilter(const FilterCondition& condition);
