@@ -29,6 +29,7 @@
 #include <duckdb/optimizer/optimizer.hpp>
 
 #include <sys/resource.h>
+#include <cuda_runtime.h>
 #include "headers/column.h"
 #include "headers/table.h"
 #include "headers/duckdb_manager.h"
@@ -36,6 +37,7 @@
 #include "operators/operator_enums.h"
 #include "operators/aggregate.h"
 #include "operators/join.h"
+#include "operators/sort.h"
 
 namespace fs = std::filesystem;
 #define OUTPUT_DIR "./output/"
@@ -298,7 +300,8 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     {
         std::vector<ColumnMetadata> left_columns = left->getColumns();
         std::vector<size_t> left_projected_column_indices = left->getProjectedColumnIndices();
-        for(size_t i = 0; i < left_projected_column_indices.size(); i++) {
+        for (size_t i = 0; i < left_projected_column_indices.size(); i++)
+        {
             std::cout << "left column: " << left_columns[left_projected_column_indices[i]].name << std::endl;
             result_columns.push_back(left_columns[left_projected_column_indices[i]]);
         }
@@ -306,12 +309,12 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     {
         std::vector<ColumnMetadata> right_columns = right->getColumns();
         std::vector<size_t> right_projected_column_indices = right->getProjectedColumnIndices();
-        for(size_t i = 0; i < right_projected_column_indices.size(); i++) {
+        for (size_t i = 0; i < right_projected_column_indices.size(); i++)
+        {
             std::cout << "right column: " << right_columns[right_projected_column_indices[i]].name << std::endl;
             result_columns.push_back(right_columns[right_projected_column_indices[i]]);
         }
-    }   
-
+    }
 
     std::string result_table_name = left->getName() + "_" + right->getName() + "_join" + std::to_string(time(0));
     std::string result_table_path = OUTPUT_DIR + result_table_name + ".csv";
@@ -321,22 +324,24 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
     result_table->createCSVHeaders();
     std::cout << "111111111" << std::endl;
-    manager.addTable(result_table);  
+    manager.addTable(result_table);
     std::cout << "222222222" << std::endl;
-    std::vector<JoinCondition> join_conditions; 
+    std::vector<JoinCondition> join_conditions;
     std::vector<ColumnMetadata> left_columns = left->getColumns();
     for (size_t i = 0; i < nested_join->conditions.size(); i++)
     {
-        JoinCondition  join_condition;
+        JoinCondition join_condition;
         join_condition.leftColumnIdx = left->getColumnIndexProjected(nested_join->conditions[i].left->ToString());
         join_condition.rightColumnIdx = right->getColumnIndexProjected(nested_join->conditions[i].right->ToString());
         join_condition.op = duckDBExpressionTypeToComparisonOperator(nested_join->conditions[i].comparison);
         join_condition.columnType = left_columns[left->getColumnIndexOriginal(nested_join->conditions[i].left->ToString())].type;
-        join_conditions.push_back(join_condition);      
+        join_conditions.push_back(join_condition);
     }
     std::cout << "333333333" << std::endl;
-    for (size_t i = 0; i < join_conditions.size(); i++) {
-        if (i > 0) {
+    for (size_t i = 0; i < join_conditions.size(); i++)
+    {
+        if (i > 0)
+        {
             std::cout << ", ";
         }
         std::cout << left->getColumnName(join_conditions[i].leftColumnIdx) << " " << comparisonOperatorToString(join_conditions[i].op) << " " << right->getColumnName(join_conditions[i].rightColumnIdx) << std::endl;
@@ -363,7 +368,8 @@ std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table>
             std::cout << ", ";
         std::cout << projection->select_list[i]->ToString() << ' ';
         std::size_t original_column_index = table->getColumnIndexOriginal(projection->select_list[i]->ToString());
-        if(oringial_columns_set.find(original_column_index) == oringial_columns_set.end()) {    
+        if (oringial_columns_set.find(original_column_index) == oringial_columns_set.end())
+        {
             projected_columns.push_back(original_column_index);
             oringial_columns_set.insert(original_column_index);
         }
@@ -372,40 +378,119 @@ std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table>
     table->addProjectedColumns(projected_columns);
     std::cout << "Projection filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
+    std::string new_file_path = "./temp_csv/" + table->getName() + "_projection" + std::to_string(time(0)) + ".csv";
+    table->setSaveFilePath(new_file_path);
+    table->createCSVHeaders();
+    table->saveCurrentBatch();
+    table->setFilePath(new_file_path);
+    // table->setIsResultTable(true);
     return table;
 }
 
 std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> table, duckdb::PhysicalOperator *op, std::string indent)
 {
     // TODO implement order by
-    std::shared_ptr<Table> result_table = table;
-
+    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     auto order = reinterpret_cast<duckdb::PhysicalOrder *>(op);
     std::cout << indent << "Order By: ";
-    for (size_t i = 0; i < order->orders.size(); i++)
+    std::string column_name = order->orders[0].expression->ToString();
+    // Extract just the column name after the last dot
+    size_t last_dot = column_name.find_last_of('.');
+    if (last_dot != std::string::npos)
     {
-        if (i > 0)
-            std::cout << ", ";
-        // Extract column names for sorting from the order operation
-        // if (!order_columns.empty() && i < order_columns.size()) {
-        //     std::string full_expr = order_columns[i];
-        //     std::string clean_column = full_expr;
-
-        //     // Find the last dot and extract just the column name
-        //     size_t last_dot_pos = full_expr.find_last_of('.');
-        //     if (last_dot_pos != std::string::npos) {
-        //         clean_column = full_expr.substr(last_dot_pos + 1);
-        //     }
-
-        //     std::cout << clean_column << " "
-        //              << (order->orders[i].type == duckdb::OrderType::ASCENDING ? "ASC" : "DESC");
-        // } else {
-        //     std::cout << order->orders[i].expression->ToString() << " "
-        //              << (order->orders[i].type == duckdb::OrderType::ASCENDING ? "ASC" : "DESC");
-        // }
+        column_name = column_name.substr(last_dot + 1);
     }
-    std::cout << "order by filter not implemented, original table returned" << std::endl;
-    std::cout << std::endl;
+
+    std::cout << "1111111111" << std::endl;
+    std::vector<size_t> projected_column_indices = table->getProjectedColumnIndices();
+    for (size_t i = 0; i < projected_column_indices.size(); i++)
+    {
+        std::cout << "projected column: " << table->getColumnName(projected_column_indices[i]) << std::endl;
+    }
+    int colIdx = table->getColumnIndexProjected(column_name);
+    std::cout << "colIdx: " << colIdx << std::endl;
+    std::cout << "2222222222" << std::endl;
+    table->readNextBatch();
+    std::cout << "3333333333" << std::endl;
+    auto current_batch = table->getCurrentBatch();
+    std::cout << "current batch size: " << current_batch[0]->size() << std::endl;
+    
+    std::cout << "4444444444" << std::endl;
+    std::vector<DeviceStruct> host_structs_in = table->transferBatchToGPU();
+    std::vector<DeviceStruct> host_structs_out = table->createSortStructs();
+    std::cout << "size of in: " << host_structs_in.size() << std::endl;
+    std::cout << "size of out: " << host_structs_out.size() << std::endl;
+    std::cout << "7777777777" << std::endl;
+    DeviceStruct *device_structs_in;
+    DeviceStruct *device_structs_out;
+    cudaMalloc(&device_structs_in, host_structs_in.size() * sizeof(DeviceStruct));
+    cudaMalloc(&device_structs_out, host_structs_out.size() * sizeof(DeviceStruct));
+    cudaMemcpy(device_structs_in, host_structs_in.data(), host_structs_in.size() * sizeof(DeviceStruct), cudaMemcpyHostToDevice);
+    cudaMemcpy(device_structs_out, host_structs_out.data(), host_structs_out.size() * sizeof(DeviceStruct), cudaMemcpyHostToDevice);
+
+    std::cout << "8888888888" << std::endl;
+    std::cout << "column size: " << current_batch[colIdx]->size() << std::endl;
+    std::cout << "radix sort started" << std::endl;
+    radix_sort(device_structs_out, device_structs_in, current_batch[0]->getNumRows(), colIdx, table->getProjectedColumnIndices().size() + 1);
+
+    std::cout << "9999999999" << std::endl;
+    // Create a vector of DeviceStruct objects instead of pointers
+    std::vector<DeviceStruct> h_final_in(host_structs_in.size());
+    cudaMemcpy(h_final_in.data(), device_structs_in, host_structs_in.size() * sizeof(DeviceStruct), cudaMemcpyDeviceToHost);
+    std::vector<void *> results;
+    for (size_t i = 0; i < h_final_in.size(); i++)
+    {
+        std::cout << "123123123123" << std::endl;
+        switch (h_final_in[i].type) // Use . instead of ->
+        {
+        case ColumnType::FLOAT:
+        {
+            std::cout << "in" << std::endl;
+            void *result_data = malloc(h_final_in[i].numRows * sizeof(float));
+            cudaMemcpy(result_data, h_final_in[i].device_ptr, h_final_in[i].numRows * sizeof(float), cudaMemcpyDeviceToHost);
+            results.push_back(result_data);
+            break;
+        }
+        case ColumnType::DATE:
+        {
+            std::cout << "in" << std::endl;
+            void *result_data = malloc(h_final_in[i].numRows * sizeof(int64_t));
+            cudaMemcpy(result_data, h_final_in[i].device_ptr, h_final_in[i].numRows * sizeof(int64_t), cudaMemcpyDeviceToHost);
+            results.push_back(result_data);
+            break;
+        }
+        }
+    }
+
+    std::vector<ColumnMetadata> result_columns;
+    for (size_t i = 0; i < table->getProjectedColumnIndices().size(); i++)
+    {
+        result_columns.push_back(table->getColumns()[table->getProjectedColumnIndices()[i]]);
+        std::cout << "result column: " << result_columns[i].name << std::endl;
+    }
+    std::string result_table_name = table->getName() + "_ordered" + std::to_string(time(0));
+    std::string result_table_path = "./temp_csv/" + result_table_name + ".csv";
+    std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
+    manager.addTable(result_table);
+    std::cout << "h_final_in[0].numRows: " << h_final_in[0].numRows << std::endl;
+    result_table->addResultBatch(results.data(), h_final_in[0].numRows);
+    result_table->setSaveFilePath(result_table_path);
+    cudaFree(device_structs_in);
+    cudaFree(device_structs_out);
+    for (size_t i = 0; i < host_structs_in.size(); i++)
+    {
+        DeviceStruct::deleteStruct(host_structs_in[i]);
+    }
+    for (size_t i = 0; i < host_structs_out.size(); i++)
+    {
+        DeviceStruct::deleteStruct(host_structs_out[i]);
+    }
+
+
+    std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+    std::cout << "total time taken by order by: " << duration.count() * 1000 << " ms" << std::endl;
+    result_table->setIsResultTable(true);
     return result_table;
 }
 
@@ -612,14 +697,30 @@ int main(int argc, char *argv[])
             result_table->setSaveFilePath(out_path);
             result_table->resetFilePositionToStart();
             result_table->createCSVHeaders();
-            while (result_table->hasMoreData()) {
-                result_table->readNextBatch();
+
+            while (result_table->hasMoreData())
+            {
+                if (!result_table->getIsResultTable())
+                    result_table->readNextBatch();
                 result_table->saveCurrentBatch();
+                if (result_table->getIsResultTable())
+                    break;
             }
-            std::cout << "Result saved to " << out_path << "\n";
+
+            std::cout << std::endl;
         }
-    } catch (std::exception &e) {
-        std::cerr << "Error: " << e.what() << "\n";
+        std::cout << "=========================================" << std::endl;
+        // std::cout << db_manager.readNextBatch("employees") << std::endl;
+        // db_manager.printCurrentBatch("employees", 10, 30);
+
+        std::shared_ptr<Table> table = db_manager.getTable("employees");
+        std::cout << table->getColumns().size() << '\n';
+        std::cout << table->getProjectedColumnNames().size() << '\n';
+        std::cout << "=========================================" << std::endl;
+    }
+    catch (std::exception &e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
 

@@ -27,6 +27,7 @@ private:
     std::string save_file_path;
     std::streampos last_file_pos;                       // Last file position for resuming reads
     size_t number_of_rows;                                 // Number of rows read so far
+    bool is_result_table = false;
 
     std::string order_by_column; 
     // Current batch information
@@ -51,6 +52,12 @@ private:
         void clearFilters();
 
 
+
+    std::vector<DeviceStruct> transferBatchToGPU();
+    std::vector<DeviceStruct> createSortStructs();
+    void setIsResultTable(bool is_result_table) { this->is_result_table = is_result_table; }
+    bool getIsResultTable() const { return is_result_table; }
+    void setFilePath(const std::string &file_path) { this->file_path = file_path; }
     bool readNextBatch();
     void saveCurrentBatch();
     void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30);
@@ -66,7 +73,6 @@ private:
     int64_t parseDate(const std::string& dateStr) const; 
     ColumnBatch *getColumnBatch(const std::string &column_name);
     ColumnBatch *getColumnBatch(size_t column_index);
-    bool transferBatchToGPU();
     void createCSVHeaders();
     size_t getColumnIndexProjected(const std::string &column_name);
     size_t getColumnIndexOriginal(const std::string &column_name);

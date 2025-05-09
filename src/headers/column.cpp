@@ -3,6 +3,7 @@
 #include "device_struct.h"
 #include <iomanip>
 #include <sstream>
+
 std::string columnTypeToString(ColumnType type)
 {
     switch (type)
@@ -134,6 +135,21 @@ std::chrono::system_clock::time_point ColumnBatch::getDate(size_t row_idx) const
         throw std::out_of_range("Invalid access to date data");
     }
     return std::chrono::system_clock::time_point(std::chrono::nanoseconds(date_data[row_idx]));
+}
+
+void *ColumnBatch::getVectorData()
+{
+    switch (type)
+    {
+        case ColumnType::FLOAT:
+            return float_data.data();
+        case ColumnType::STRING:
+            return string_data.data();
+        case ColumnType::DATE:
+            return date_data.data();
+        default:
+            return nullptr;
+    }
 }
 
 // GPU operations (stubs to be implemented with actual CUDA code)

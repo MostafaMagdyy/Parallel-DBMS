@@ -81,8 +81,13 @@ int64_t Table::parseDate(const std::string &dateStr) const
 
 bool Table::readNextBatch()
 {
-    //TODO read next batch previous Join if all data is here instead of reading from file
-    std::cout << "reading next batch from " << name << "with batch size " << batch_size << std::endl;
+    if (is_result_table)
+    {
+        std::cout << "This is result table we are not reading from file, we are reading from memory " << name << std::endl;
+        return true;
+    }
+    // TODO read next batch previous Join if all data is here instead of reading from file
+    std::cout << "reading next batch from " << name << std::endl;
     if (!has_more_data)
     {
         std::cerr << "No more data to read from file: " << file_path << std::endl;
@@ -260,6 +265,7 @@ void Table::saveCurrentBatch()
     {
         for (size_t col_idx = 0; col_idx < current_batch.size(); col_idx++)
         {
+            // std::cout << "value: " << current_batch[col_idx]->toString(row_idx) << std::endl;
 
             file << current_batch[col_idx]->toString(row_idx);
             if (col_idx != current_batch.size() - 1)
@@ -483,14 +489,28 @@ ColumnBatch *Table::getColumnBatch(size_t column_index)
 }
 
 // GPU operations
-bool Table::transferBatchToGPU()
+std::vector<DeviceStruct> Table::transferBatchToGPU()
 {
-    bool success = true;
+    std::vector<DeviceStruct> device_structs;
     for (auto &col_batch : current_batch)
     {
-        success &= col_batch->transferToGPU();
+        col_batch->transferToGPU();
+        device_structs.push_back(*col_batch->getCpuStructPtr());
     }
-    return success;
+
+    return device_structs;
+}
+
+std::vector<DeviceStruct> Table::createSortStructs()
+{
+    std::vector<DeviceStruct> device_structs;
+    for (auto &col_batch : current_batch)
+    {
+        std::cout << "Creating sort struct for column with number of rows: " << col_batch->getNumRows() << std::endl;
+        device_structs.push_back(*DeviceStruct::createStructWithoutCopy(col_batch->getType(), col_batch->getNumRows()));
+    }
+    device_structs.push_back(*DeviceStruct::createStructWithoutCopy(ColumnType::DATE, current_batch[0]->getNumRows()));
+    return device_structs;
 }
 
 void Table::createCSVHeaders()
@@ -563,7 +583,7 @@ void Table::resetFilePositionToStart()
     has_more_data = true;
 }
 
-ColumnType Table::getColumnType(const std::string &column_name) 
+ColumnType Table::getColumnType(const std::string &column_name)
 {
     return columns[column_map[column_name]].type;
 }
@@ -578,6 +598,7 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
     std::cout << "Adding result batch to table: " << name << std::endl;
     if (current_batch.empty())
     {
+        std::cout << "number of columns: " << columns.size() << std::endl;
         current_batch.resize(columns.size()); // we assume there's no projection at the start of creating the table
         for (size_t i = 0; i < columns.size(); i++)
         {

@@ -6,10 +6,21 @@ DUCKDB_LIB="./duckdb/build/release/src"
 nvcc -std=c++17 -arch=sm_86 -dc -o cuda/aggregate.o \
   cuda/aggregate.cu \
   -I. -I$DUCKDB_INCLUDE
+  
+nvcc -std=c++17 -arch=sm_75 -dc -o RadixSort/scan.o \
+  RadixSort/scan.cu \
+  -I. -I$DUCKDB_INCLUDE
+
+nvcc -std=c++17 -arch=sm_75 -dc -o RadixSort/sort.o \
+  RadixSort/sort.cu \
+  -I. -I$DUCKDB_INCLUDE
 
 # Then compile C++ files and link everything
 nvcc -std=c++17 -arch=sm_86 -o sql \
+  RadixSort/scan.o \
+  RadixSort/sort.o \
   cuda/aggregate.o \
+  RadixSort/read_csv.cu \
   headers/column.cpp \
   headers/table.cpp \
   headers/duckdb_manager.cpp \

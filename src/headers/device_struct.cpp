@@ -32,6 +32,17 @@ DeviceStruct* DeviceStruct::createStruct(ColumnType type, void* host_ptr, size_t
     return new DeviceStruct(type, device_ptr, numRows, rowSize);
 }
 
+DeviceStruct *DeviceStruct::createStructWithoutCopy(ColumnType type, size_t numRows)
+{
+    size_t rowSize = sizeFromColumnType(type);
+    void* device_ptr;
+    cudaError_t err = cudaMalloc(&device_ptr, numRows * rowSize);
+    if (err != cudaSuccess) {
+        throw "cudaMalloc failed: " + std::string(cudaGetErrorString(err));
+    }
+    return new DeviceStruct(type, device_ptr, numRows, rowSize);
+}
+
 void DeviceStruct::deleteStruct(DeviceStruct &deviceStruct){
     cudaFree(deviceStruct.device_ptr);
     deviceStruct.device_ptr = nullptr;
@@ -39,5 +50,5 @@ void DeviceStruct::deleteStruct(DeviceStruct &deviceStruct){
 
 // Destructor definition
 DeviceStruct::~DeviceStruct() {
-    std::cout << "destroying batch";
+    // std::cout << "destroying batch";
 }

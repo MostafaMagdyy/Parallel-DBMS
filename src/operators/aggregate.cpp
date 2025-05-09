@@ -101,30 +101,33 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
 
     while (table->hasMoreData())
     {
+        std::cout << "1111111111" << std::endl;
         table->readNextBatch();
         auto start = std::chrono::high_resolution_clock::now(); 
-    
+        std::vector<DeviceStruct> device_struct_ptrs = table->transferBatchToGPU();
         std::vector<std::shared_ptr<ColumnBatch>> current_batch = table->getCurrentBatch();
+        std::cout << "2222222222" << std::endl;
         for (auto &[column_name, aggregate_functions_column] : column_aggregate_functions)
         {
-            std::vector<DeviceStruct> device_struct_ptrs;
             std::vector<AggregateFunctionType> aggregate_functions;
             // TODO: create device struct for this column
             size_t projected_index = table->getColumnIndexProjected(column_name);
             std::shared_ptr<ColumnBatch> column_batch = current_batch[projected_index];
-    
+            std::cout << "3333333333" << std::endl;
             auto start = std::chrono::high_resolution_clock::now();
             column_batch->transferToGPU();
             auto end = std::chrono::high_resolution_clock::now();
             copy_time += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-            DeviceStruct *device_struct_ptr = column_batch->getCpuStructPtr();
+            DeviceStruct device_struct_ptr = device_struct_ptrs[projected_index];
+            std::cout << "4444444444" << std::endl;
             for (auto &aggregate_function : aggregate_functions_column)
             {
-                device_struct_ptrs.push_back(*device_struct_ptr);
+                device_struct_ptrs.push_back(device_struct_ptr);
                 aggregate_functions.push_back(aggregate_function);
                 // use device struct for multiple aggregate `functions
                 //  TODO
             }
+            std::cout << "5555555555" << std::endl;
             std::vector<void *> batch_aggregate_results(aggregate_functions.size());
             for (size_t i = 0; i < aggregate_functions.size(); i++)
             {
@@ -140,10 +143,12 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
                     throw "Unsupported column type for aggregate function: " + column_names[i];
                 }
             }
-
+            std::cout << "6666666666" << std::endl;
             tobecalledfromCPU(device_struct_ptrs.data(), aggregate_functions.data(), aggregate_functions.size(), batch_aggregate_results.data());
+            std::cout << "7777777777" << std::endl;
             end = std::chrono::high_resolution_clock::now();
             kernel_time += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();  
+            std::cout << "8888888888" << std::endl;
             for (size_t i = 0; i < column_aggregate_results[column_name].size(); i++)
             {
                 auto aggregate_result = column_aggregate_results[column_name][i];
@@ -181,7 +186,10 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
                     break;
                 }
             }
-            DeviceStruct::deleteStruct(device_struct_ptrs[0]);
+        }
+        std::cout << "9999999999" << std::endl;
+        for(auto device_struct_ptr : device_struct_ptrs) {
+            DeviceStruct::deleteStruct(device_struct_ptr);
         }
         auto end = std::chrono::high_resolution_clock::now();
         timeSum += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();

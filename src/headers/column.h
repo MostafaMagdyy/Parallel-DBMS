@@ -88,6 +88,7 @@ public:
     size_t getNumRows() const { return num_rows; }
     DeviceStruct* getCpuStructPtr() const { return cpu_struct_ptr; }
 
+    void* getVectorData();
     // GPU operations (stubs to be implemented with actual CUDA code)
     bool transferToGPU();
     void freeGpuMemory();
