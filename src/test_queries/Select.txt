@@ -1,1 +1,1 @@
-select salary, id, dep_id, department_id  from employees_600k_random, departments where department_id = dep_id order by id
+"select salary, id, dep_id, department_id  from employees_6m_random, departments where employees_6m_random.department_id = departments.dep_id"

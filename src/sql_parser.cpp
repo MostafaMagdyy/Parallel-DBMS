@@ -349,7 +349,7 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     std::cout << "444444444" << std::endl;
     std::cout << std::endl;
 
-    joinTablesCPU(left, right, join_conditions, result_table);
+    joinTablesGPU(left, right, join_conditions, result_table);
     result_table->saveCurrentBatch();
 
     return result_table;

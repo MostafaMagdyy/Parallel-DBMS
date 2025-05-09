@@ -81,13 +81,14 @@ int64_t Table::parseDate(const std::string &dateStr) const
 
 bool Table::readNextBatch()
 {
+    std::cout << "reading next batch from " << name << std::endl;
+    
     if (is_result_table)
     {
         std::cout << "This is result table we are not reading from file, we are reading from memory " << name << std::endl;
         return true;
     }
     // TODO read next batch previous Join if all data is here instead of reading from file
-    std::cout << "reading next batch from " << name << std::endl;
     if (!has_more_data)
     {
         std::cerr << "No more data to read from file: " << file_path << std::endl;
