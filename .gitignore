@@ -37,3 +37,5 @@ src/temp_csv/*.csv
 src/SampleTest/*.txt
 src/SampleTest/data/*.csv
 src/SampleTest/*.csv
+csv_data/
+output/

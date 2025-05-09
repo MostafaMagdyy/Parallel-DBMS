@@ -28,7 +28,7 @@ private:
     std::streampos last_file_pos;                       // Last file position for resuming reads
     size_t number_of_rows;                                 // Number of rows read so far
     bool is_result_table = false;
-
+    bool is_descending = false;
     std::string order_by_column; 
     // Current batch information
     size_t current_row;                                      // Current row in the file
@@ -43,7 +43,7 @@ private:
     
     public:
     Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
-        const std::string &file_path, size_t batch_size = 1000000);
+        const std::string &file_path, size_t batch_size = int(1e7));
         bool passesFilters(const std::vector<std::string>& row_values) const;
         const std::vector<FilterCondition>& getFilters() const { return filters; }
         void addFilter(const FilterCondition& condition);
@@ -78,6 +78,8 @@ private:
     size_t getColumnIndexOriginal(const std::string &column_name);
     std::vector<std::shared_ptr<ColumnBatch>> getCurrentBatch() const { return current_batch; }
     void resetFilePositionToStart();
+    void setIsDescending(bool is_descending) { this->is_descending = is_descending; }
+    bool getIsDescending() const { return is_descending; }
 
     ColumnType getColumnType(const std::string &column_name) ;
 

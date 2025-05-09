@@ -246,6 +246,7 @@ bool Table::readNextBatch()
 }
 void Table::saveCurrentBatch()
 {
+    auto start_time = std::chrono::high_resolution_clock::now();
     // TODO don't save untill we hit a certain limit
     if (current_batch.empty())
     {
@@ -261,21 +262,43 @@ void Table::saveCurrentBatch()
 
     std::cout << "Saving current batch to file: " << save_file_path << std::endl;
     std::cout << "Current batch size: " << current_batch[0]->size() << std::endl;
-    for (size_t row_idx = 0; row_idx < current_batch[0]->size(); row_idx++)
+    std::cout << "number of cols : " << current_batch.size() << std::endl;
+    if (is_descending)
     {
-        for (size_t col_idx = 0; col_idx < current_batch.size(); col_idx++)
+        for (int row_idx = (current_batch[0]->size() - 1); row_idx >= 0; row_idx--)
         {
-            // std::cout << "value: " << current_batch[col_idx]->toString(row_idx) << std::endl;
-
-            file << current_batch[col_idx]->toString(row_idx);
-            if (col_idx != current_batch.size() - 1)
+            for (size_t col_idx = 0; col_idx < current_batch.size(); col_idx++)
             {
-                file << ", ";
+                file << current_batch[col_idx]->toString(row_idx);
+                if (col_idx != current_batch.size() - 1)
+                {
+                    file << ", ";
+                }
             }
+            file << std::endl;
         }
-        file << std::endl;
+    }
+    else
+    {
+        for (size_t row_idx = 0; row_idx < current_batch[0]->size(); row_idx++)
+        {
+            for (size_t col_idx = 0; col_idx < current_batch.size(); col_idx++)
+            {
+                // std::cout << "value: " << current_batch[col_idx]->toString(row_idx) << std::endl;
+
+                file << current_batch[col_idx]->toString(row_idx);
+                if (col_idx != current_batch.size() - 1)
+                {
+                    file << ", ";
+                }
+            }
+            file << std::endl;
+        }
     }
     file.close();
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end_time - start_time;
+    std::cout << "Time taken to save current batch: " << duration.count() << " seconds" << std::endl;
 }
 // void Table::setOrderByColumn(const std::string &column_name)
 // {

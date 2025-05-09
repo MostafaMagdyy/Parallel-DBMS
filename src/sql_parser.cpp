@@ -378,12 +378,12 @@ std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table>
     table->addProjectedColumns(projected_columns);
     std::cout << "Projection filter not implemented, original table returned" << std::endl;
     std::cout << std::endl;
-    std::string new_file_path = "./temp_csv/" + table->getName() + "_projection" + std::to_string(time(0)) + ".csv";
-    table->setSaveFilePath(new_file_path);
-    table->createCSVHeaders();
-    table->saveCurrentBatch();
-    table->setFilePath(new_file_path);
-    // table->setIsResultTable(true);
+    table->resetFilePositionToStart();
+    // std::string new_file_path = "./temp_csv/" + table->getName() + "_projection" + std::to_string(time(0)) + ".csv";
+    // table->setSaveFilePath(new_file_path);
+    // table->createCSVHeaders();
+    // table->saveCurrentBatch();
+    // table->setFilePath(new_file_path);
     return table;
 }
 
@@ -393,6 +393,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     auto order = reinterpret_cast<duckdb::PhysicalOrder *>(op);
     std::cout << indent << "Order By: ";
+    std::cout << "order->orders[0].expression->ToString(): " << order->orders[0].expression->ToString() << std::endl;
     std::string column_name = order->orders[0].expression->ToString();
     // Extract just the column name after the last dot
     size_t last_dot = column_name.find_last_of('.');
@@ -486,6 +487,8 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
         DeviceStruct::deleteStruct(host_structs_out[i]);
     }
 
+    order->orders[0].type == duckdb::OrderType::DESCENDING ? result_table->setIsDescending(true) : result_table->setIsDescending(false);  
+    
 
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
@@ -659,13 +662,13 @@ std::vector<std::string> readQueries(std::string queries_dir)
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0]
-                  << " <csv_directory> \"<SQL query>\"\n";
-        return 1;
-    }
-    const std::string csv_directory = argv[1];
-    const std::string query         = argv[2];
+    // if (argc != 3) {
+    //     std::cerr << "Usage: " << argv[0]
+    //               << " <csv_directory> \"<SQL query>\"\n";
+    //     return 1;
+    // }
+    const std::string csv_directory = "./csv_data";
+    const std::string query         = argv[1];
     createOutputDir();
 
     std::chrono::high_resolution_clock::time_point start_time =
@@ -691,7 +694,7 @@ int main(int argc, char *argv[])
         auto result_table = traversePhysicalOperator(db_manager, plan);
 
         // if it was a projection, dump out CSV
-        if (plan->type == duckdb::PhysicalOperatorType::PROJECTION) {
+        if (plan->type == duckdb::PhysicalOperatorType::PROJECTION || plan->type == duckdb::PhysicalOperatorType::ORDER_BY) {
             const auto out_path =
                 OUTPUT_DIR + result_table->getName() + "_result.csv";
             result_table->setSaveFilePath(out_path);
