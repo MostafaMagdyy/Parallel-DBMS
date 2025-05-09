@@ -193,7 +193,6 @@ void sum_scan_blelloch(uint64_t *const d_out,
                                                                   shmem_sz,
                                                                   max_elems_per_block);
         
-        checkCudaErrors(cudaDeviceSynchronize());
         checkCudaErrors(cudaFree(d_dummy_blocks_sums));
     }
     // Else, recurse on this same function as you'll need the full-blown scan
