@@ -32,4 +32,6 @@
 *.app
 test_duckdb
 src/duckdb/
-src/csv_data/*.csv
+csv_data/
+timing
+temp_csv/

@@ -1,1 +1,1 @@
-select  sum(salary), min(salary), max(salary) from employees_100k
+select salary, id, dep_id, department_id  from employees_600k_random, departments where department_id = dep_id order by id
