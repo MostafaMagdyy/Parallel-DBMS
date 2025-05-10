@@ -49,8 +49,8 @@ AggregateFunctionType parseAggregateExpression(const std::string &name)
 
 std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<AggregateFunctionType> aggregate_functions, std::vector<std::string> column_names)
 {
-    
-    //TODO add avg by using sum and count of rows by batches
+
+    // TODO add avg by using sum and count of rows by batches
     std::unordered_map<std::string, std::vector<AggregateFunctionType>> column_aggregate_functions;
     std::unordered_map<std::string, std::vector<void *>> column_aggregate_results;
     for (size_t i = 0; i < column_names.size(); i++)
@@ -101,25 +101,21 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
 
     while (table->hasMoreData())
     {
-        std::cout << "1111111111" << std::endl;
         table->readNextBatch();
-        auto start = std::chrono::high_resolution_clock::now(); 
+        auto start = std::chrono::high_resolution_clock::now();
         std::vector<DeviceStruct> device_struct_ptrs = table->transferBatchToGPU();
         std::vector<std::shared_ptr<ColumnBatch>> current_batch = table->getCurrentBatch();
-        std::cout << "2222222222" << std::endl;
         for (auto &[column_name, aggregate_functions_column] : column_aggregate_functions)
         {
             std::vector<AggregateFunctionType> aggregate_functions;
             // TODO: create device struct for this column
             size_t projected_index = table->getColumnIndexProjected(column_name);
             std::shared_ptr<ColumnBatch> column_batch = current_batch[projected_index];
-            std::cout << "3333333333" << std::endl;
             auto start = std::chrono::high_resolution_clock::now();
             column_batch->transferToGPU();
             auto end = std::chrono::high_resolution_clock::now();
             copy_time += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
             DeviceStruct device_struct_ptr = device_struct_ptrs[projected_index];
-            std::cout << "4444444444" << std::endl;
             for (auto &aggregate_function : aggregate_functions_column)
             {
                 device_struct_ptrs.push_back(device_struct_ptr);
@@ -127,7 +123,6 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
                 // use device struct for multiple aggregate `functions
                 //  TODO
             }
-            std::cout << "5555555555" << std::endl;
             std::vector<void *> batch_aggregate_results(aggregate_functions.size());
             for (size_t i = 0; i < aggregate_functions.size(); i++)
             {
@@ -143,12 +138,9 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
                     throw "Unsupported column type for aggregate function: " + column_names[i];
                 }
             }
-            std::cout << "6666666666" << std::endl;
             tobecalledfromCPU(device_struct_ptrs.data(), aggregate_functions.data(), aggregate_functions.size(), batch_aggregate_results.data());
-            std::cout << "7777777777" << std::endl;
             end = std::chrono::high_resolution_clock::now();
-            kernel_time += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();  
-            std::cout << "8888888888" << std::endl;
+            kernel_time += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
             for (size_t i = 0; i < column_aggregate_results[column_name].size(); i++)
             {
                 auto aggregate_result = column_aggregate_results[column_name][i];
@@ -187,8 +179,8 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
                 }
             }
         }
-        std::cout << "9999999999" << std::endl;
-        for(auto device_struct_ptr : device_struct_ptrs) {
+        for (auto device_struct_ptr : device_struct_ptrs)
+        {
             DeviceStruct::deleteStruct(device_struct_ptr);
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -216,16 +208,17 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
     // std::cout << "Copy time: " << copy_time << " milliseconds" << std::endl;
     // std::cout << "Kernel time: " << kernel_time << " milliseconds" << std::endl;
     std::vector<void *> results;
-    for(int i = 0; i < column_names.size(); i++) {
+    for (int i = 0; i < column_names.size(); i++)
+    {
         int idx = 0;
         switch (aggregate_functions[i])
         {
         case AggregateFunctionType::SUM:
         {
             idx = std::find(column_aggregate_functions[column_names[i]].begin(), column_aggregate_functions[column_names[i]].end(), AggregateFunctionType::SUM) - column_aggregate_functions[column_names[i]].begin();
-            void* originalValue = column_aggregate_results[column_names[i]][idx];
-            float* newValue = new float(*(float*)originalValue);
-            results.push_back((void*)newValue);
+            void *originalValue = column_aggregate_results[column_names[i]][idx];
+            float *newValue = new float(*(float *)originalValue);
+            results.push_back((void *)newValue);
             break;
         }
 
@@ -241,7 +234,7 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
             results.push_back(column_aggregate_results[column_names[i]][idx]);
             break;
         }
-        default:    
+        default:
             throw "Unsupported aggregate function: " + column_names[i];
         }
     }

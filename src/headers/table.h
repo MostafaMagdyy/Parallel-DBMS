@@ -30,8 +30,7 @@ private:
     bool is_result_table = false;
     bool is_descending = false;
     std::string order_by_column; 
-    // Current batch information
-    size_t current_row;                                      // Current row in the file
+    size_t total_count;                                      // Current row in the file
     bool has_more_data;                                      // Flag to indicate if there's more data to read
     std::vector<std::shared_ptr<ColumnBatch>> current_batch; // Current batch of data
     std::vector<FilterCondition> filters;
@@ -80,9 +79,10 @@ private:
     void resetFilePositionToStart();
     void setIsDescending(bool is_descending) { this->is_descending = is_descending; }
     bool getIsDescending() const { return is_descending; }
+    size_t getTotalCount() const { return total_count; }
 
     ColumnType getColumnType(const std::string &column_name) ;
-
+    void setCurrentBatch(const std::vector<std::shared_ptr<ColumnBatch>> &newBatch);
     void setSaveFilePath(const std::string &file_path);
     void addResultBatch(void **result_table_batches, size_t num_rows);
     friend class DuckDBManager;

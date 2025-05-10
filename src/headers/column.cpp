@@ -3,6 +3,8 @@
 #include "device_struct.h"
 #include <iomanip>
 #include <sstream>
+#include <cstring>
+#include "constants.h"
 
 std::string columnTypeToString(ColumnType type)
 {
@@ -18,8 +20,6 @@ std::string columnTypeToString(ColumnType type)
         return "UNKNOWN";
     }
 }
-
-// Helper function to convert string type to ColumnType
 ColumnType stringToColumnType(const std::string &type_str)
 {
     if (type_str == "VARCHAR")
@@ -77,13 +77,22 @@ void ColumnBatch::addDouble(float value)
 
 void ColumnBatch::addString(const std::string &value)
 {
-    if (type == ColumnType::STRING)
+    if (type == ColumnType::STRING && value.length() <= MAX_STRING_LENGTH)
     {
-        string_data.push_back(value);
-        num_rows++;
+        auto slot_off = num_rows * MAX_STRING_LENGTH;
+        string_data.resize(string_data.size() + MAX_STRING_LENGTH, '\0');
+        auto copy_len = std::min(value.size(), size_t(MAX_STRING_LENGTH - 1));
+        memcpy(&string_data[slot_off], value.data(), copy_len);
+        ++num_rows;
     }
-    else
+    else if (type == ColumnType::STRING)
     {
+        std::cout << "String length exceeds maximum allowed length of " << MAX_STRING_LENGTH << std::endl;
+        throw std::runtime_error("String length exceeds maximum allowed length of " + std::to_string(MAX_STRING_LENGTH));
+    }
+    else if (type != ColumnType::STRING)
+    {
+        std::cout << "Type mismatch: Cannot add string to " + columnTypeToString(type) + " column" << std::endl;
         throw std::runtime_error("Type mismatch: Cannot add string to " + columnTypeToString(type) + " column");
     }
 }
@@ -119,13 +128,16 @@ float ColumnBatch::getDouble(size_t row_idx) const
     return float_data[row_idx];
 }
 
-const std::string &ColumnBatch::getString(size_t row_idx) const
+const std::string ColumnBatch::getString(size_t row_idx) const
 {
     if (type != ColumnType::STRING || row_idx >= num_rows)
     {
         throw std::out_of_range("Invalid access to string data");
     }
-    return string_data[row_idx];
+    auto slot_off = row_idx * MAX_STRING_LENGTH;
+    // returns until \0
+    size_t len = strnlen(&string_data[slot_off], MAX_STRING_LENGTH);
+    return std::string(&string_data[slot_off], len);
 }
 
 std::chrono::system_clock::time_point ColumnBatch::getDate(size_t row_idx) const
@@ -136,48 +148,72 @@ std::chrono::system_clock::time_point ColumnBatch::getDate(size_t row_idx) const
     }
     return std::chrono::system_clock::time_point(std::chrono::nanoseconds(date_data[row_idx]));
 }
+void ColumnBatch::setDate(size_t row_idx, const int64_t &value)
+{
+    if (type != ColumnType::DATE || row_idx >= num_rows)
+    {
+        throw std::out_of_range("Invalid access to date data");
+    }
+    date_data[row_idx] = value;
+}
+void ColumnBatch::setDouble(size_t row_idx, const float &value)
+{
+    if (type != ColumnType::FLOAT || row_idx >= num_rows)
+    {
+        throw std::out_of_range("Invalid access to float data");
+    }
+    float_data[row_idx] = value;
+}
+void ColumnBatch::setString(size_t row_idx, const std::string &value)
+{
+    if (type != ColumnType::STRING || row_idx >= num_rows)
+    {
+        throw std::out_of_range("Invalid access to string data");
+    }
+    auto slot_off = row_idx * MAX_STRING_LENGTH;
+    auto copy_len = std::min(value.size(), size_t(MAX_STRING_LENGTH - 1));
+    memcpy(&string_data[slot_off], value.data(), copy_len);
+}
+
 
 void *ColumnBatch::getVectorData()
 {
     switch (type)
     {
-        case ColumnType::FLOAT:
-            return float_data.data();
-        case ColumnType::STRING:
-            return string_data.data();
-        case ColumnType::DATE:
-            return date_data.data();
-        default:
-            return nullptr;
+    case ColumnType::FLOAT:
+        return float_data.data();
+    case ColumnType::STRING:
+        // returns const char*
+        return string_data.data();
+    case ColumnType::DATE:
+        return date_data.data();
+    default:
+        return nullptr;
     }
 }
-
-// GPU operations (stubs to be implemented with actual CUDA code)
 bool ColumnBatch::transferToGPU()
 {
-    // To be implemented with CUDA
-    // This would allocate GPU memory and copy data to the GPU
     if (on_gpu)
         return true; // Already on GPU
 
     void *host_ptr = nullptr;
     switch (type)
     {
-        case ColumnType::FLOAT:
-            host_ptr = (void*)float_data.data();
-            break;
-        case ColumnType::STRING:
-            host_ptr = (void*)string_data.data();
-            break;
-        case ColumnType::DATE:
-            host_ptr = (void*)date_data.data();
-            break;
-        default:
-            throw std::runtime_error("Unsupported column type for GPU transfer");
+    case ColumnType::FLOAT:
+        host_ptr = (void *)float_data.data();
+        break;
+    case ColumnType::STRING:
+        host_ptr = (void *)string_data.data();
+        break;
+    case ColumnType::DATE:
+        host_ptr = (void *)date_data.data();
+        break;
+    default:
+        throw std::runtime_error("Unsupported column type for GPU transfer");
     }
 
     this->cpu_struct_ptr = DeviceStruct::createStruct(type, host_ptr, num_rows);
-    
+
     on_gpu = true; // Set this to true when implemented
     return on_gpu;
 }
@@ -192,7 +228,6 @@ void ColumnBatch::freeGpuMemory()
         delete this->cpu_struct_ptr;
         on_gpu = false;
     }
-    
 }
 
 bool FilterCondition::evaluate(const FilterValue &row_value) const
@@ -232,22 +267,23 @@ bool ColumnBatch::isOnGPU() const { return on_gpu; }
 
 std::string ColumnBatch::toString(size_t row_idx) const
 {
-    switch(type)
+    switch (type)
     {
-        case ColumnType::FLOAT:
-            return std::to_string(getDouble(row_idx));
-        case ColumnType::DATE: {
-            auto time_point = getDate(row_idx);
-            std::time_t time = std::chrono::system_clock::to_time_t(time_point);
-            std::tm tm = *std::localtime(&time);
-            char buffer[32];
-            std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm);
-            return std::string(buffer);
-        }
-        case ColumnType::STRING:
-            return getString(row_idx);
-        default:
-            return "NULL";
+    case ColumnType::FLOAT:
+        return std::to_string(getDouble(row_idx));
+    case ColumnType::DATE:
+    {
+        auto time_point = getDate(row_idx);
+        std::time_t time = std::chrono::system_clock::to_time_t(time_point);
+        std::tm tm = *std::localtime(&time);
+        char buffer[32];
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm);
+        return std::string(buffer);
+    }
+    case ColumnType::STRING:
+        return getString(row_idx);
+    default:
+        return "NULL";
     }
 }
 

@@ -4,7 +4,8 @@
 #include <sstream>
 #include <iomanip>
 #include <sys/resource.h>
-
+#include <cstring>
+#include "headers/constants.h"
 size_t getCurrentRSS()
 {
     struct rusage rusage;
@@ -33,7 +34,7 @@ std::string formatMemorySize(size_t size_bytes)
 Table::Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
              const std::string &file_path, size_t batch_size)
     : name(name), columns(columns), file_path(file_path), save_file_path(file_path),
-      batch_size(batch_size), current_row(0), has_more_data(true), last_file_pos(0)
+      batch_size(batch_size), total_count(0), has_more_data(true), last_file_pos(0)
 {
 
     // Initialize column map for quick lookups
@@ -117,7 +118,7 @@ bool Table::readNextBatch()
         }
 
         // Skip header if it's the first batch
-        if (current_row == 0)
+        if (total_count == 0)
         {
             std::string header;
             std::getline(file, header);
@@ -126,7 +127,7 @@ bool Table::readNextBatch()
         }
         else
         {
-            std::cout << "Seeking to saved file position for row " << current_row << std::endl;
+            std::cout << "Seeking to saved file position for row " << total_count << std::endl;
             file.seekg(last_file_pos);
             if (!file.good())
             {
@@ -195,7 +196,6 @@ bool Table::readNextBatch()
                     break;
 
                 case ColumnType::STRING:
-                    // std::cout << "Adding string to column: " << columns[col_idx].name << std::endl;
                     current_batch[projected_col_idx]->addString(field);
                     break;
 
@@ -221,7 +221,7 @@ bool Table::readNextBatch()
             this->number_of_rows++;
         }
         last_file_pos = file.tellg();
-        current_row += rows_read;
+        total_count += rows_read;
         has_more_data = !file.eof();
         size_t memory_after = getCurrentRSS();
         size_t memory_used = memory_after - memory_before;
@@ -601,7 +601,7 @@ size_t Table::getColumnIndexOriginal(const std::string &column_name)
 
 void Table::resetFilePositionToStart()
 {
-    current_row = 0;
+    total_count = 0;
     last_file_pos = 0;
     has_more_data = true;
 }
@@ -643,11 +643,15 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
                 current_batch[column_idx]->addDouble(static_cast<float *>(result_table_batches[column_idx])[row_idx]);
                 break;
             case ColumnType::STRING:
-                // current_batch[j]->addString(static_cast<std::string>(result_table_batches[i][j]));
-                // TODO: add string to column batch
-                // std::cout << "here2" << '\n';
-                throw std::runtime_error("String column not supported in result batch");
-                break;
+            {
+                char *string_array = static_cast<char *>(result_table_batches[column_idx]);
+                char *str_start = string_array + (row_idx * MAX_STRING_LENGTH);
+                // Compute the actual length up to MAX_STRING_LENGTH or null terminator
+                size_t len = strnlen(str_start, MAX_STRING_LENGTH);
+                std::string value(str_start, len);
+                current_batch[column_idx]->addString(value);
+            }
+            break;
             case ColumnType::DATE:
                 // std::cout << "here3" << '\n';
                 current_batch[column_idx]->addDate(static_cast<int64_t *>(result_table_batches[column_idx])[row_idx]);
@@ -777,4 +781,11 @@ std::vector<std::string> Table::getProjectedColumnNames() const
 std::string Table::getColumnName(size_t column_index) const
 {
     return columns[column_index].name;
+}
+void Table::setCurrentBatch(const std::vector<std::shared_ptr<ColumnBatch>> &newBatch)
+{
+    for (size_t i = 0; i < current_batch.size(); i++)
+    {
+        current_batch[i] = newBatch[i];
+    }
 }

@@ -1,11 +1,11 @@
 #include "enums.h"
 #include <cstdint>
-
+#include "constants.h"
 size_t sizeFromColumnType(ColumnType type){
     switch (type)
     {
     case ColumnType::STRING:
-        return 0;
+        return MAX_STRING_LENGTH * sizeof(char);
     case ColumnType::FLOAT:
         return sizeof(float);
     case ColumnType::DATE:

@@ -64,7 +64,7 @@ private:
     size_t num_rows;
 
     std::vector<float> float_data;
-    std::vector<std::string> string_data;
+    std::string string_data;
     std::vector<int64_t> date_data;
 
     bool on_gpu;
@@ -79,17 +79,19 @@ public:
     void addDouble(float value);
     void addString(const std::string &value);
     void addDate(const int64_t &value);
-
+    void setDate(size_t row_idx, const int64_t &value);
+    void setDouble(size_t row_idx, const float &value);
+    void setString(size_t row_idx, const std::string &value);
     // Get data
     float getDouble(size_t row_idx) const;
-    const std::string &getString(size_t row_idx) const;
+    const std::string getString(size_t row_idx) const;
+
     int64_t getDateAsInt64(size_t row_idx) const;
     std::chrono::system_clock::time_point getDate(size_t row_idx) const;
     size_t getNumRows() const { return num_rows; }
     DeviceStruct* getCpuStructPtr() const { return cpu_struct_ptr; }
 
     void* getVectorData();
-    // GPU operations (stubs to be implemented with actual CUDA code)
     bool transferToGPU();
     void freeGpuMemory();
 

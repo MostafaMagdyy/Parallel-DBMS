@@ -1,6 +1,7 @@
 #include "join.h"
 #include "../headers/enums.h"
-
+#include "../headers/constants.h"
+#include <string.h> 
 template <typename T>
 void addValueToVoidArray(void *array, size_t index, T value)
 {
@@ -27,8 +28,13 @@ size_t addBatchColumns(void **result_table_batches, std::vector<bool> &matches, 
                         addValueToVoidArray<float>(result_table_batches[col_idx], current_row, left_batch[col_idx]->getDouble(i));
                         break;
                     case ColumnType::STRING:
-                        // TODO: add string to result batch
-                        throw std::runtime_error("String column not supported in result batch");
+                        {
+                            std::string str = left_batch[col_idx]->getString(i);
+                            char* str_array = static_cast<char*>(result_table_batches[col_idx]);
+                            strncpy(str_array + current_row * MAX_STRING_LENGTH, str.c_str(), MAX_STRING_LENGTH);
+                            // Ensure null termination
+                            str_array[current_row * MAX_STRING_LENGTH + std::min(str.length(), (size_t)MAX_STRING_LENGTH - 1)] = '\0';
+                        }
                         break;
                     case ColumnType::DATE:
                         addValueToVoidArray<int64_t>(result_table_batches[col_idx], current_row, left_batch[col_idx]->getDateAsInt64(i));
@@ -47,7 +53,13 @@ size_t addBatchColumns(void **result_table_batches, std::vector<bool> &matches, 
                         break;
                     case ColumnType::STRING:
                         // TODO: add string to result batch
-                        throw std::runtime_error("String column not supported in result batch");
+                        {
+                            std::string str = right_batch[col_idx]->getString(j);
+                            char* str_array = static_cast<char*>(result_table_batches[left_batch.size() + col_idx]);
+                            strncpy(str_array + current_row * MAX_STRING_LENGTH, str.c_str(), MAX_STRING_LENGTH);
+                            // Ensure null termination
+                            str_array[current_row * MAX_STRING_LENGTH + std::min(str.length(), (size_t)MAX_STRING_LENGTH - 1)] = '\0';
+                        }
                         break;
                     case ColumnType::DATE:
                         addValueToVoidArray<int64_t>(result_table_batches[left_batch.size() + col_idx], current_row, right_batch[col_idx]->getDateAsInt64(j));
@@ -61,6 +73,14 @@ size_t addBatchColumns(void **result_table_batches, std::vector<bool> &matches, 
         }
     }
     return current_row;
+}
+std::string trimString(const std::string& str) {
+    // Find first non-whitespace
+    size_t start = str.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos) return "";    
+    // Find last non-whitespace
+    size_t end = str.find_last_not_of(" \t\r\n");    
+    return str.substr(start, end - start + 1);
 }
 void **allocateResultTableBatches(const std::vector<bool> &matches,
                                   const std::vector<std::shared_ptr<ColumnBatch>> &left_batch,
@@ -98,10 +118,27 @@ bool compareJoinCondition(const JoinCondition &condition,
             right_batch[condition.rightColumnIdx]->getDouble(right_row_idx),
             condition.op);
     case ColumnType::STRING:
+    {
+        std::cout << "comparing string" << std::endl;
+        std::cout << "left: " << left_batch[condition.leftColumnIdx]->getString(left_row_idx)<< std::endl;
+        std::cout << "right: " << right_batch[condition.rightColumnIdx]->getString(right_row_idx)<< std::endl;
+                std::cout << "left: " << left_batch[condition.leftColumnIdx]->getString(left_row_idx).size()<< std::endl;
+        std::cout << "right: " << right_batch[condition.rightColumnIdx]->getString(right_row_idx).size()<< std::endl;
+        if(left_batch[condition.leftColumnIdx]->getString(left_row_idx) == "Christine Diaz")
+        {
+            std::cout << "found Christine Diaz in left" << std::endl;
+        }
+        if(right_batch[condition.rightColumnIdx]->getString(right_row_idx) == "Christine Diaz")
+        {
+            std::cout << "found Christine Diaz in right" << std::endl;
+        }
+        std::string left_untrimmed= left_batch[condition.leftColumnIdx]->getString(left_row_idx);
+        std::string right_untrimmed= right_batch[condition.rightColumnIdx]->getString(right_row_idx);
         return compareValues<std::string>(
-            left_batch[condition.leftColumnIdx]->getString(left_row_idx),
-            right_batch[condition.rightColumnIdx]->getString(right_row_idx),
+            trimString(left_untrimmed),
+            trimString(right_untrimmed),
             condition.op);
+    }
     case ColumnType::DATE:
         return compareValues<int64_t>(
             left_batch[condition.leftColumnIdx]->getDateAsInt64(left_row_idx),
@@ -120,18 +157,21 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
     std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     while (left_table->hasMoreData())
     {
+        std::cout<<"111111111111"<<std::endl;
         left_table->readNextBatch();
         std::cout << "left table size: " << left_table->getCurrentBatchSize() << std::endl;
-        std::cout << "right table size: " << right_table->getCurrentBatchSize() << std::endl;
         std::vector<std::shared_ptr<ColumnBatch>> left_batches = left_table->getCurrentBatch();
         while (right_table->hasMoreData())
         {
+            std::cout<<"222222222222"<<std::endl;
             right_table->readNextBatch();
+            std::cout << "right table size: " << right_table->getCurrentBatchSize() << std::endl;
             std::vector<std::shared_ptr<ColumnBatch>> right_batches = right_table->getCurrentBatch();
             std::vector<bool> matches(left_batches[0]->getNumRows() * right_batches[0]->getNumRows(), false);
             
             for (size_t i = 0; i < left_table->getCurrentBatchSize(); i++)
             {
+                std::cout<<"333333333333"<<std::endl;
                 for (size_t j = 0; j < right_table->getCurrentBatchSize(); j++)
                 {
                     bool match = true;
@@ -144,12 +184,16 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                     // now we have the bool array, we need to init void* for the result tables
                 }
             }
+            std::cout<<"444444444444"<<std::endl;
             void **result_table_batches = allocateResultTableBatches(matches, left_batches, right_batches);
+            std::cout<<"5555555555555"<<std::endl;
             size_t num_rows = addBatchColumns(result_table_batches, matches, left_batches, right_batches);
+            std::cout<<"6666666666666"<<std::endl;
             std::cout << "num rows matched: " << num_rows << std::endl;
             // now the void** should be the same as the GPU result that we get
             // we need to add the result to the result table
             result_table->addResultBatch(result_table_batches, num_rows);
+            std::cout<<"777777777777"<<std::endl;
         }
         right_table->resetFilePositionToStart();
     }
