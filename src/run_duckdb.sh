@@ -18,6 +18,11 @@ nvcc -std=c++17 -arch=sm_75 -dc -o RadixSort/sort.o \
   -I. -I$DUCKDB_INCLUDE \
   -rdc=true
 
+nvcc -std=c++17 -arch=sm_75 -dc -o Join/join_gpu.o \
+  Join/join_gpu.cu \
+  -I. -I$DUCKDB_INCLUDE \
+  -rdc=true
+
 nvcc -std=c++17 -arch=sm_75 -dc -o Join/join.o \
   Join/join.cu \
   -I. -I$DUCKDB_INCLUDE \
@@ -28,6 +33,7 @@ nvcc -std=c++17 -arch=sm_75 -o sql \
   RadixSort/scan.o \
   RadixSort/sort.o \
   cuda/aggregate.o \
+  Join/join_gpu.o \
   Join/join.o \
   RadixSort/read_csv.cu \
   headers/column.cpp \

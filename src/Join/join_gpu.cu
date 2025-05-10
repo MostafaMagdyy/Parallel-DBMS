@@ -4,6 +4,7 @@
 #include "../headers/device_struct.h"
 #include "../headers/enums.h"
 #include "join.h"
+#include "operators/join.h"
 #include "globals.cuh"
 #include <chrono>
 #include <iostream>
@@ -71,7 +72,9 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                 cudaMemcpy(d_offsets, h_offsets, sizeof(int) * h_input2.size(), cudaMemcpyHostToDevice);
 
                 // TODO: calculate the shared memory size
-                size_t shared_memory_size = 1000;
+                size_t shared_memory_size = h_offsets[h_input2.size() - 1] +
+                                            h_input2[h_input2.size() - 1].rowSize * h_input2[h_input2.size() - 1].numRows;
+                std::cout << "shared memory size: " << shared_memory_size << std::endl;
                 size_t n_cols_out = h_input1.size() + h_input2.size();
 
                 int actual_rows_out = nested_loop_join(d_input1, d_input2, d_join_condition, h_input1[0].numRows, h_input2[0].numRows,
