@@ -5,9 +5,6 @@ DUCKDB_LIB="./duckdb/build/release/src"
 # Compile CUDA files first
 nvcc -std=c++17 -arch=sm_75 -dc -o cuda/aggregate.o \
   cuda/aggregate.cu \
-  -I. -I$DUCKDB_INCLUDE
-  
-nvcc -std=c++17 -arch=sm_86 -dc -o RadixSort/scan.o \
   -I. -I$DUCKDB_INCLUDE \
   -rdc=true
 
@@ -16,7 +13,7 @@ nvcc -std=c++17 -arch=sm_75 -dc -o RadixSort/scan.o \
   -I. -I$DUCKDB_INCLUDE \
   -rdc=true
 
-nvcc -std=c++17 -arch=sm_86 -dc -o RadixSort/sort.o \
+nvcc -std=c++17 -arch=sm_75 -dc -o RadixSort/sort.o \
   RadixSort/sort.cu \
   -I. -I$DUCKDB_INCLUDE \
   -rdc=true
@@ -44,8 +41,8 @@ nvcc -std=c++17 -arch=sm_75 -o sql \
   headers/duckdb_manager.cpp \
   headers/enums.cpp \
   headers/device_struct.cpp \
-  operators/cpu_sort.cpp \
   operators/aggregate.cpp \
+  operators/cpu_sort.cpp \
   operators/join.cpp \
   sql_parser.cpp \
   -I$DUCKDB_INCLUDE -I. \
