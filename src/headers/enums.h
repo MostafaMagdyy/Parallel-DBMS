@@ -14,6 +14,7 @@ enum class ColumnType
 };
 
 size_t sizeFromColumnType(ColumnType type);
+std::string columnTypeToString(ColumnType type);
 
 enum class ComparisonOperator {
     EQUALS,

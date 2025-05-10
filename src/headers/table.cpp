@@ -82,13 +82,14 @@ int64_t Table::parseDate(const std::string &dateStr) const
 
 bool Table::readNextBatch()
 {
+    std::cout << "reading next batch from " << name << std::endl;
+    
     if (is_result_table)
     {
         std::cout << "This is result table we are not reading from file, we are reading from memory " << name << std::endl;
         return true;
     }
     // TODO read next batch previous Join if all data is here instead of reading from file
-    std::cout << "reading next batch from " << name << std::endl;
     if (!has_more_data)
     {
         std::cerr << "No more data to read from file: " << file_path << std::endl;
@@ -665,6 +666,12 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
     std::cout << "Current batch size after adding result batch: " << current_batch[0]->size() << std::endl;
     std::cout << "Added result batch to table: " << name << std::endl;
     this->has_more_data = true;
+
+    // for (size_t i = 0; i < current_batch.size(); i++)
+    // {
+    //     free(result_table_batches[i]);
+    // }
+    // free(result_table_batches);
 }
 
 bool Table::passesFilters(const std::vector<std::string> &row_values) const

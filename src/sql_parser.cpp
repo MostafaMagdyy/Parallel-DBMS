@@ -42,7 +42,14 @@
 
 namespace fs = std::filesystem;
 #define OUTPUT_DIR "./output/"
+bool use_gpu = true;
 
+void createOutputDir()
+{
+    try
+    {
+        if (!fs::exists(OUTPUT_DIR))
+        {
 void createOutputDir()
 {
     try
@@ -52,6 +59,9 @@ void createOutputDir()
             std::cout << "Creating output directory: " << OUTPUT_DIR << std::endl;
             fs::create_directories(OUTPUT_DIR);
         }
+    }
+    catch (const std::exception &e)
+    {
     }
     catch (const std::exception &e)
     {
@@ -324,6 +334,8 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     std::string result_table_path = OUTPUT_DIR + result_table_name + ".csv";
     for (size_t i = 0; i < result_columns.size(); i++)
     {
+    for (size_t i = 0; i < result_columns.size(); i++)
+    {
         std::cout << "result column: " << result_columns[i].name << std::endl;
     }
     std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
@@ -353,8 +365,16 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     }
     std::cout << "444444444" << std::endl;
     std::cout << std::endl;
-
-    joinTablesCPU(left, right, join_conditions, result_table);
+    if (use_gpu)
+    {
+        std::cout << "using gpu" << std::endl;
+        joinTablesGPU(left, right, join_conditions, result_table);
+    }
+    else
+    {
+        std::cout << "using cpu" << std::endl;
+        joinTablesCPU(left, right, join_conditions, result_table);
+    }
     result_table->saveCurrentBatch();
 
     return result_table;
@@ -424,6 +444,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::cout << "3333333333" << std::endl;
     auto current_batch = table->getCurrentBatch();
     std::cout << "current batch size: " << current_batch[0]->size() << std::endl;
+
 
     std::cout << "4444444444" << std::endl;
     std::vector<DeviceStruct> host_structs_in = table->transferBatchToGPU();
@@ -497,6 +518,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     }
 
     order->orders[0].type == duckdb::OrderType::DESCENDING ? result_table->setIsDescending(true) : result_table->setIsDescending(false);
+    order->orders[0].type == duckdb::OrderType::DESCENDING ? result_table->setIsDescending(true) : result_table->setIsDescending(false);
 
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
@@ -526,10 +548,16 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
             aggregate_functions.push_back(AggregateFunctionType::SUM);
         else
             aggregate_functions.push_back(aggFunc);
+        if (aggFunc == AggregateFunctionType::AVG)
+            aggregate_functions.push_back(AggregateFunctionType::SUM);
+        else
+            aggregate_functions.push_back(aggFunc);
         aggregate_functions_temp.push_back(aggFunc);
         std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
     std::vector<ColumnMetadata> columns = table->getColumns();
+    for (auto &col : columns)
+    {
     for (auto &col : columns)
     {
         std::cout << "Column name: " << col.name << std::endl;
@@ -540,13 +568,22 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     for (size_t i = 0; i < column_names.size(); i++)
     {
         result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions_temp[i]) + "(" + column_names[i] + ")");
+        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions_temp[i]) + "(" + column_names[i] + ")");
     }
     for (size_t i = 0; i < results.size(); i++)
     {
         std::string duckdb_type = "";
         bool is_primary_key = false;
         ;
+        bool is_primary_key = false;
+        ;
         size_t element_size = 0;
+
+        ColumnMetadata column(result_column_names[i],
+                              columns[table->getColumnIndexOriginal(column_names[i])].type,
+                              duckdb_type,
+                              is_primary_key,
+                              i);
 
         ColumnMetadata column(result_column_names[i],
                               columns[table->getColumnIndexOriginal(column_names[i])].type,
@@ -568,7 +605,9 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     }
     std::string result_table_name = table->getName() + "_agg" + std::to_string(time(0));
     std::string result_table_path = OUTPUT_DIR + result_table_name + ".csv";
+    std::string result_table_path = OUTPUT_DIR + result_table_name + ".csv";
     std::shared_ptr<Table> result_table = std::make_shared<Table>(result_table_name, result_columns, result_table_path);
+    result_table->createCSVHeaders();
     result_table->createCSVHeaders();
     result_table->addResultBatch(results.data(), 1);
     result_table->saveCurrentBatch();
@@ -682,10 +721,19 @@ int main(int argc, char *argv[])
     // }
     const std::string csv_directory = "./csv_data";
     const std::string query = argv[1];
+    const std::string query = argv[1];
     createOutputDir();
+
+    if (argc > 2)
+    {
+        use_gpu = std::stoi(argv[2]) == 1;
+    }
 
     std::chrono::high_resolution_clock::time_point start_time =
         std::chrono::high_resolution_clock::now();
+
+    try
+    {
 
     try
     {

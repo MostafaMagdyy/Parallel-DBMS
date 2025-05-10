@@ -155,6 +155,7 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                    std::shared_ptr<Table> result_table)
 {
     std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+    int timeSum = 0;
     while (left_table->hasMoreData())
     {
         std::cout<<"111111111111"<<std::endl;
@@ -168,7 +169,7 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
             std::cout << "right table size: " << right_table->getCurrentBatchSize() << std::endl;
             std::vector<std::shared_ptr<ColumnBatch>> right_batches = right_table->getCurrentBatch();
             std::vector<bool> matches(left_batches[0]->getNumRows() * right_batches[0]->getNumRows(), false);
-            
+            auto start = std::chrono::high_resolution_clock::now(); 
             for (size_t i = 0; i < left_table->getCurrentBatchSize(); i++)
             {
                 std::cout<<"333333333333"<<std::endl;
@@ -193,11 +194,13 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
             // now the void** should be the same as the GPU result that we get
             // we need to add the result to the result table
             result_table->addResultBatch(result_table_batches, num_rows);
-            std::cout<<"777777777777"<<std::endl;
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+            timeSum += duration.count();
         }
         right_table->resetFilePositionToStart();
     }
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-    std::cout << "time taken by join duration: " << duration.count() << " seconds" << std::endl;
+    std::cout << "time taken by join duration: " << timeSum << " seconds" << std::endl;
 }
