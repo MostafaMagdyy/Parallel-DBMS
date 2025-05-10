@@ -507,7 +507,6 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     }
 
     order->orders[0].type == duckdb::OrderType::DESCENDING ? result_table->setIsDescending(true) : result_table->setIsDescending(false);
-    order->orders[0].type == duckdb::OrderType::DESCENDING ? result_table->setIsDescending(true) : result_table->setIsDescending(false);
 
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
@@ -537,10 +536,7 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
             aggregate_functions.push_back(AggregateFunctionType::SUM);
         else
             aggregate_functions.push_back(aggFunc);
-        if (aggFunc == AggregateFunctionType::AVG)
-            aggregate_functions.push_back(AggregateFunctionType::SUM);
-        else
-            aggregate_functions.push_back(aggFunc);
+
         aggregate_functions_temp.push_back(aggFunc);
         std::cout << "Aggregate Function: " << aggregateFunctionTypeToString(aggFunc) << " Column Name " << column_names[i] << std::endl;
     }
@@ -555,7 +551,6 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     std::vector<std::string> result_column_names;
     for (size_t i = 0; i < column_names.size(); i++)
     {
-        result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions_temp[i]) + "(" + column_names[i] + ")");
         result_column_names.push_back(aggregateFunctionTypeToString(aggregate_functions_temp[i]) + "(" + column_names[i] + ")");
     }
     for (size_t i = 0; i < results.size(); i++)
