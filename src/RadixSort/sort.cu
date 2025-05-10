@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "../headers/device_struct.h"
 #include "scan.h"
+#include "../headers/constants.h"
 #define MAX_BLOCK_SZ 128
 
 __device__ uint64_t hostInt64ToOrderedUInt64(int64_t i)
@@ -168,6 +169,9 @@ __global__ void gpu_radix_sort_local(DeviceStruct *d_out_sorted,
             case ColumnType::FLOAT:
                 *((float *)d_out_sorted[i].device_ptr + g_new_pos) = *((float *)d_in[i].device_ptr + cpy_idx);
                 break;
+            case ColumnType::STRING:
+                memcpy(((char *)d_out_sorted[i].device_ptr) + g_new_pos * MAX_STRING_LENGTH, ((char *)d_in[i].device_ptr) + cpy_idx * MAX_STRING_LENGTH, MAX_STRING_LENGTH);
+                break;
             default:
                 break;
             }
@@ -220,6 +224,9 @@ __global__ void gpu_glbl_shuffle(DeviceStruct *d_out,
                 break;
             case ColumnType::FLOAT:
                 *((float *)d_out[i].device_ptr + data_glbl_pos) = *((float *)d_in[i].device_ptr + cpy_idx);
+                break;
+            case ColumnType::STRING:
+                memcpy(((char *)d_out[i].device_ptr) + data_glbl_pos * MAX_STRING_LENGTH, ((char *)d_in[i].device_ptr) + cpy_idx * MAX_STRING_LENGTH, MAX_STRING_LENGTH);
                 break;
             default:
                 break;

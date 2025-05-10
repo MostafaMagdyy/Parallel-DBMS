@@ -39,6 +39,7 @@
 #include "operators/join.h"
 #include "operators/sort.h"
 #include "operators/cpu_sort.h"
+#include "headers/constants.h"
 
 namespace fs = std::filesystem;
 #define OUTPUT_DIR "./output/"
@@ -409,12 +410,28 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::cout << indent << "Order By: ";
     std::cout << "order->orders[0].expression->ToString(): " << order->orders[0].expression->ToString() << std::endl;
     std::string column_name = order->orders[0].expression->ToString();
+    
     // Extract just the column name after the last dot
     size_t last_dot = column_name.find_last_of('.');
     if (last_dot != std::string::npos)
     {
         column_name = column_name.substr(last_dot + 1);
     }
+    
+    std::cout << "does it have quotes: " << (column_name[0] == '"' && column_name[column_name.size() - 1] == '"') << std::endl;
+    std::cout << column_name[0] << ' ' << column_name[column_name.size() - 1] << std::endl;
+    if (column_name[0] == '"' && column_name[column_name.size() - 1] == '"')
+        column_name = column_name.substr(1, column_name.size() - 2);
+    
+    if (column_name[0] == '#')
+    {
+        int colIdx = std::stoi(column_name.substr(1));
+        column_name = table->getColumnName(table->getProjectedColumnIndices()[colIdx]);
+    }
+
+    
+    std::cout << "column_name: " << column_name << std::endl;
+    std::cout << "table->getColumnType(column_name): " << columnTypeToString(table->getColumnType(column_name)) << std::endl;
     if (table->getColumnType(column_name) == ColumnType::STRING)
     {
         std::cout << "String column detected, using CPU sort" << std::endl;
@@ -480,6 +497,14 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
             std::cout << "in" << std::endl;
             void *result_data = malloc(h_final_in[i].numRows * sizeof(int64_t));
             cudaMemcpy(result_data, h_final_in[i].device_ptr, h_final_in[i].numRows * sizeof(int64_t), cudaMemcpyDeviceToHost);
+            results.push_back(result_data);
+            break;
+        }
+        case ColumnType::STRING:
+        {
+            std::cout << "in" << std::endl;
+            void *result_data = malloc(h_final_in[i].numRows * MAX_STRING_LENGTH);
+            cudaMemcpy(result_data, h_final_in[i].device_ptr, h_final_in[i].numRows * MAX_STRING_LENGTH, cudaMemcpyDeviceToHost);
             results.push_back(result_data);
             break;
         }
