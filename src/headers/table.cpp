@@ -667,11 +667,11 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
     std::cout << "Added result batch to table: " << name << std::endl;
     this->has_more_data = true;
 
-    // for (size_t i = 0; i < current_batch.size(); i++)
-    // {
-    //     free(result_table_batches[i]);
-    // }
-    // free(result_table_batches);
+    for (size_t i = 0; i < current_batch.size(); i++)
+    {
+        free(result_table_batches[i]);
+    }
+    free(result_table_batches);
 }
 
 bool Table::passesFilters(const std::vector<std::string> &row_values) const

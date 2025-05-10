@@ -335,8 +335,12 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     std::cout << "222222222" << std::endl;
     std::vector<JoinCondition> join_conditions;
     std::vector<ColumnMetadata> left_columns = left->getColumns();
+    bool string_join = false;
     for (size_t i = 0; i < nested_join->conditions.size(); i++)
     {
+        if (left_columns[left->getColumnIndexOriginal(nested_join->conditions[i].left->ToString())].type == ColumnType::STRING)
+            string_join = true;
+
         JoinCondition join_condition;
         join_condition.leftColumnIdx = left->getColumnIndexProjected(nested_join->conditions[i].left->ToString());
         join_condition.rightColumnIdx = right->getColumnIndexProjected(nested_join->conditions[i].right->ToString());
@@ -355,7 +359,7 @@ std::shared_ptr<Table> nested_loop_join(DuckDBManager &manager, std::shared_ptr<
     }
     std::cout << "444444444" << std::endl;
     std::cout << std::endl;
-    if (use_gpu)
+    if (use_gpu && !string_join)
     {
         std::cout << "using gpu" << std::endl;
         joinTablesGPU(left, right, join_conditions, result_table);

@@ -8,7 +8,7 @@
 #include "globals.cuh"
 #include <chrono>
 #include <iostream>
-
+#include "../headers/constants.h"
 void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> right_table,
                    std::vector<JoinCondition> join_conditions,
                    std::shared_ptr<Table> result_table)
@@ -88,6 +88,7 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
 
                 for (int col_idx = 0; col_idx < n_cols_out; col_idx++)
                 {
+                    // std::cout << "column type: " << columnTypeToString(h_out_temp[col_idx].type) << std::endl;
                     switch (h_out_temp[col_idx].type)
                     {
                     case ColumnType::DATE:
@@ -112,6 +113,17 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                         result_table_batches[col_idx] = temp_data;
                         break;
                     }
+                    case ColumnType::STRING:
+                    {
+                        char *temp_data = new char[actual_rows_out * MAX_STRING_LENGTH];
+                        cudaMemcpy(
+                            temp_data,
+                            h_out_temp[col_idx].device_ptr,
+                            sizeof(char) * actual_rows_out * MAX_STRING_LENGTH,
+                            cudaMemcpyDeviceToHost);
+                        result_table_batches[col_idx] = temp_data;
+                        break;
+                    }
                     default:
                         throw "Invalid column type";
                     }
@@ -120,7 +132,6 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                 std::cout << "num rows matched: " << actual_rows_out << std::endl;
                 result_table->addResultBatch(result_table_batches, actual_rows_out);
                 delete[] h_out_temp;
-                delete[] result_table_batches;
 
                 cudaFree(d_input1);
                 cudaFree(d_input2);

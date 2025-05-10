@@ -34,7 +34,7 @@ DuckDBManager DuckDBManager::create()
     manager.con = std::make_unique<duckdb::Connection>(*manager.db);
     manager.con->Query("BEGIN TRANSACTION");
     manager.con->Query("SET disabled_optimizers = 'statistics_propagation';");
-    manager.default_batch_size = 1;
+    manager.default_batch_size = 1e7;
     return manager;
 }
 

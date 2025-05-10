@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 #include "../headers/column.h"
+#include "../headers/constants.h"
 #define BLOCK_SIZE 256
 
 __device__ unsigned int d_global_row_count = 0;
@@ -103,7 +104,12 @@ __device__ void join_row(
             //         static_cast<const void *>(&d_table1[col1].device_ptr[gthid])));
             ((float *)result[currCol].device_ptr)[curr_r] = ((const float *)d_table1[col1].device_ptr)[gthid];
             break;
-
+        case ColumnType::STRING:
+        {
+            char *str_start = ((char *)d_table1[col1].device_ptr) + gthid * MAX_STRING_LENGTH;
+            memcpy(((char *)result[currCol].device_ptr) + curr_r * MAX_STRING_LENGTH, str_start, MAX_STRING_LENGTH);
+            break;
+        }
         default:
             continue; // Skip if type_for_this_condition is not handled
         }
@@ -121,7 +127,7 @@ __device__ void join_row(
             //     *(static_cast<const int64_t *>(
             //           static_cast<const void *>(shmem)) +
             //       i + (offset[col2] / sizeof(int64_t)));
-            ((int64_t *)result[currCol].device_ptr)[curr_r] = *((const int64_t *)((shmem)) + i + (d_offsets[c2] / sizeof(int64_t)));
+            ((int64_t *)result[currCol].device_ptr)[curr_r] = *((const int64_t *)((shmem)) + i + (d_offsets[c2] / sizeof(int64_t))); // this is incorrect because if the previous offset is not divisible by 8, then the result will be incorrect
             break;
 
         case ColumnType::FLOAT:
@@ -130,9 +136,17 @@ __device__ void join_row(
             //     *(static_cast<const float *>(
             //           static_cast<const void *>(shmem)) +
             //       i + (offset[col2] / sizeof(float)));
-            ((float *)result[currCol].device_ptr)[curr_r] = *((const float *)((shmem)) + i + (d_offsets[c2] / sizeof(float)));
+            ((float *)result[currCol].device_ptr)[curr_r] = *((const float *)((shmem)) + i + (d_offsets[c2] / sizeof(float))); // this is incorrect because if the previous offset is not divisible by 4, then the result will be incorrect
 
             break;
+        case ColumnType::STRING:
+        {
+            char *str_start = ((char *)shmem) + i * MAX_STRING_LENGTH + (d_offsets[c2] / sizeof(char));
+            // printf("copying string from %d to %d\n", i, curr_r);
+            // printf("string: %s\n", str_start);
+            memcpy(((char *)result[currCol].device_ptr) + curr_r * MAX_STRING_LENGTH, str_start, MAX_STRING_LENGTH);
+            break;
+        }
 
         default:
             continue; // Skip if type_for_this_condition is not handled for shared memory access
@@ -151,6 +165,10 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
     extern __shared__ uint8_t shmem[];
     int thid = threadIdx.x;
     int gthid = blockIdx.x * blockDim.x + thid;
+    if (thid == 0 && blockIdx.x == 0)
+    {
+        printf("priting from thread %d\n", thid);
+    }
     // if (thid == 0 && blockIdx.x == 0)
     // {
     //     for (int i = 0; i < nrows2; i++)
@@ -202,6 +220,12 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
                 *((float *)(shmem) + thid + j + d_offsets[i] / sizeof(float)) =
                     ((const float *)d_table2[i].device_ptr)[thid + j];
                 break;
+            case ColumnType::STRING:
+            {
+                char *str_start = ((char *)d_table2[i].device_ptr) + (thid + j) * MAX_STRING_LENGTH;
+                memcpy(((char *)shmem) + (thid + j) * MAX_STRING_LENGTH + d_offsets[i] / sizeof(char), str_start, MAX_STRING_LENGTH);
+                break;
+            }
             default:
                 break;
             }
@@ -297,13 +321,14 @@ int nested_loop_join(DeviceStruct *d_table1, DeviceStruct *d_table2,
     cudaMemcpyToSymbol(d_global_row_count, &zero, sizeof(unsigned int));
 
     int nblocks = (nrows1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
-   
+    std::cout << "calling Kernel" << std::endl;
     nested_loop_join_kernel<<<nblocks, BLOCK_SIZE, shared_memory_size>>>(
         d_table1, d_table2, d_conditions, nrows1, nrows2, nCols1, nCols2,
         nConditions, result, d_offsets, n_cols_output);
 
     cudaError_t cudaError = cudaGetLastError();
-    if (cudaError != cudaSuccess) {
+    if (cudaError != cudaSuccess)
+    {
         printf("Kernel launch failed with error \"%s\"\n", cudaGetErrorString(cudaError));
     }
 
