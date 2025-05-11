@@ -432,7 +432,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     
     std::cout << "column_name: " << column_name << std::endl;
     std::cout << "table->getColumnType(column_name): " << columnTypeToString(table->getColumnType(column_name)) << std::endl;
-    if (table->getColumnType(column_name) == ColumnType::STRING)
+    if (true)
     {
         std::cout << "String column detected, using CPU sort" << std::endl;
         table->readNextBatch();
@@ -540,7 +540,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
     std::cout << "total time taken by order by: " << duration.count() * 1000 << " ms" << std::endl;
-    result_table->setIsResultTable(true);
+    // result_table->setIsResultTable(true);
     return result_table;
 }
 
@@ -575,6 +575,9 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     {
         std::cout << "Column name: " << col.name << std::endl;
     }
+    aggregateCPU(table, aggregate_functions, column_names);
+    return table;
+    
     std::vector<void *> results = aggregate(table, aggregate_functions, column_names);
     std::vector<ColumnMetadata> result_columns;
     std::vector<std::string> result_column_names;
@@ -757,14 +760,14 @@ int main(int argc, char *argv[])
             result_table->setSaveFilePath(out_path);
             result_table->resetFilePositionToStart();
             result_table->createCSVHeaders();
-            while (result_table->hasMoreData())
-            {
-                if (!result_table->getIsResultTable())
-                    result_table->readNextBatch();
-                result_table->saveCurrentBatch();
-                if (result_table->getIsResultTable())
-                    break;
-            }
+            // while (result_table->hasMoreData())
+            // {
+            //     if (!result_table->getIsResultTable())
+            //         result_table->readNextBatch();
+            //     result_table->saveCurrentBatch();
+            //     if (result_table->getIsResultTable())
+            //         break;
+            // }
             std::cout << std::endl;
         }
         std::cout << "=========================================" << std::endl;

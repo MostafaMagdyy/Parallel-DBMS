@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include "column.h" 
+#include "constants.h"
 
 class DuckDBManager;
 
@@ -42,7 +43,7 @@ private:
     
     public:
     Table(const std::string &name, const std::vector<ColumnMetadata> &columns,
-        const std::string &file_path, size_t batch_size = int(1e7));
+        const std::string &file_path, size_t batch_size = BATCH_SIZE);
         bool passesFilters(const std::vector<std::string>& row_values) const;
         const std::vector<FilterCondition>& getFilters() const { return filters; }
         void addFilter(const FilterCondition& condition);
