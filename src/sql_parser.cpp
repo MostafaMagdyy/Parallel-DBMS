@@ -522,6 +522,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::cout << "h_final_in[0].numRows: " << h_final_in[0].numRows << std::endl;
     result_table->addResultBatch(results.data(), h_final_in[0].numRows);
     result_table->setSaveFilePath(result_table_path);
+    result_table->setIsResultTable(true);
     cudaFree(device_structs_in);
     cudaFree(device_structs_out);
     for (size_t i = 0; i < host_structs_in.size(); i++)
@@ -717,18 +718,18 @@ std::vector<std::string> readQueries(std::string queries_dir)
 
 int main(int argc, char *argv[])
 {
-    // if (argc != 3) {
-    //     std::cerr << "Usage: " << argv[0]
-    //               << " <csv_directory> \"<SQL query>\"\n";
-    //     return 1;
-    // }
-    const std::string csv_directory = "./csv_data";
-    const std::string query = argv[1];
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0]
+                  << " <csv_directory> \"<SQL query>\"\n";
+        return 1;
+    }
+    const std::string csv_directory = argv[1];
+    const std::string query = argv[2];
     createOutputDir();
 
-    if (argc > 2)
+    if (argc > 3)
     {
-        use_gpu = std::stoi(argv[2]) == 1;
+        use_gpu = std::stoi(argv[3]) == 1;
     }
 
     std::chrono::high_resolution_clock::time_point start_time =
