@@ -64,7 +64,7 @@ int64_t Table::parseDate(const std::string &dateStr) const
             tm.tm_year -= 1900; // Adjust year (tm_year is years since 1900)
             tm.tm_mon -= 1;     // Adjust month (tm_mon is 0-11)
 
-            if (dateStr.length() >= 19)
+            if (dateStr.length() > 10 && dateStr[10] == ' ')
             { // yyyy-MM-dd HH:mm:ss
                 sscanf(dateStr.c_str() + 11, "%d:%d:%d", &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
             }
@@ -88,7 +88,7 @@ bool Table::readNextBatch(int64_t num_rows)
     }
 
     // std::cout << "reading next batch from " << name << std::endl;
-    
+
     if (is_result_table)
     {
         std::cout << "This is result table we are not reading from file, we are reading from memory " << name << std::endl;
@@ -163,7 +163,6 @@ bool Table::readNextBatch(int64_t num_rows)
             // This needs to be optimized
             // no need for this getline again
             // maybe we pass the whole line to pass filters
-            // Split the line into fields on the go while checking filters
             // There is no way to do this now
             while (std::getline(ss, field, ','))
             {
