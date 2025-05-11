@@ -132,6 +132,9 @@ const std::string ColumnBatch::getString(size_t row_idx) const
 {
     if (type != ColumnType::STRING || row_idx >= num_rows)
     {
+        std::cout<<"Column Index"<<row_idx<<std::endl;
+        std::cout<<"Num Rows"<<num_rows<<std::endl;
+        std::cout << "Type mismatch: Cannot access string from " + columnTypeToString(type) + " column" << std::endl;
         throw std::out_of_range("Invalid access to string data");
     }
     auto slot_off = row_idx * MAX_STRING_LENGTH;

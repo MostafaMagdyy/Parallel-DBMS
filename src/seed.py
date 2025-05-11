@@ -78,25 +78,25 @@ def main():
     
     # Define table structures
     tables = [
-        {
-            'name': 'employees',
-            'columns': [
-                {'name': 'id', 'type': 'N', 'is_primary': True},
-                {'name': 'name', 'type': 'T'},
-                {'name': 'salary', 'type': 'N'},
-                {'name': 'hire_date', 'type': 'D'},
-                {'name': 'department_id', 'type': 'N'}
-            ],
-            'num_rows': 1000
-        },
-        {
-            'name': 'departments',
-            'columns': [
-                {'name': 'id', 'type': 'N', 'is_primary': True},
-                {'name': 'name', 'type': 'T'}
-            ],
-            'num_rows': 5
-        },
+        # {
+        #     'name': 'employees',
+        #     'columns': [
+        #         {'name': 'id', 'type': 'N', 'is_primary': True},
+        #         {'name': 'name', 'type': 'T'},
+        #         {'name': 'salary', 'type': 'N'},
+        #         {'name': 'hire_date', 'type': 'D'},
+        #         {'name': 'department_id', 'type': 'N'}
+        #     ],
+        #     'num_rows': 1000
+        # },
+        # {
+        #     'name': 'departments',
+        #     'columns': [
+        #         {'name': 'id', 'type': 'N', 'is_primary': True},
+        #         {'name': 'name', 'type': 'T'}
+        #     ],
+        #     'num_rows': 5
+        # },
         {
             'name': 'projects',
             'columns': [
@@ -105,7 +105,7 @@ def main():
                 {'name': 'start_date', 'type': 'D'},
                 {'name': 'budget', 'type': 'N'}
             ],
-            'num_rows': 50
+            'num_rows': 4
         }
     ]
     

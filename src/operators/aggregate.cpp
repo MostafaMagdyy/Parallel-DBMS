@@ -240,3 +240,135 @@ std::vector<void *> aggregate(std::shared_ptr<Table> table, std::vector<Aggregat
     }
     return results;
 }
+
+void aggregateCPU(std::shared_ptr<Table> &table, std::vector<AggregateFunctionType> &aggregate_functions, std::vector<std::string> &column_names)
+{
+    auto total_time = 0;
+    std::cout<<"Using CPU aggregate"<<std::endl;
+    while (table->hasMoreData())
+    {
+        table->readNextBatch();
+        std::vector<std::shared_ptr<ColumnBatch>> current_batch = table->getCurrentBatch();
+        size_t num_rows = current_batch[0]->getNumRows();
+        std::cout << "Num rows: " << num_rows << std::endl;
+        auto start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < column_names.size(); i++)
+        {
+            switch (aggregate_functions[i])
+            {
+            case AggregateFunctionType::SUM:
+            {
+                size_t projected_index = table->getColumnIndexProjected(column_names[i]);
+                size_t num_rows = current_batch[projected_index]->getNumRows();
+                std::shared_ptr<ColumnBatch> column_batch = current_batch[projected_index];
+                float sum = 0;
+                for (size_t j = 0; j < num_rows; j++)
+                {
+                    sum += column_batch->getDouble(j);
+                }
+                std::cout << "Sum of column " << column_names[i] << ": " << sum << std::endl;
+                break;
+            }
+            case AggregateFunctionType::AVG:
+            {
+                size_t projected_index = table->getColumnIndexProjected(column_names[i]);
+                size_t num_rows_avg = current_batch[projected_index]->getNumRows();
+                std::shared_ptr<ColumnBatch> column_batch_avg = current_batch[projected_index];
+                float sum_avg = 0;
+                for (size_t j = 0; j < num_rows_avg; j++)
+                {
+                    sum_avg += column_batch_avg->getDouble(j);
+                }
+                std::cout << "Avg of column " << column_names[i] << ": " << sum_avg / num_rows_avg << std::endl;
+                break;
+            }
+            case AggregateFunctionType::COUNT:
+            {
+                size_t projected_index = table->getColumnIndexProjected(column_names[i]);
+                size_t num_rows_count = current_batch[projected_index]->getNumRows();
+                std::cout << "Count of column " << column_names[i] << ": " << num_rows_count << std::endl;
+                break;
+            }
+            case AggregateFunctionType::MAX:
+            {
+                switch (table->getColumnType(column_names[i]))
+                {
+                case ColumnType::FLOAT:
+                {
+                    size_t projected_index = table->getColumnIndexProjected(column_names[i]);
+                    size_t num_rows_max = current_batch[projected_index]->getNumRows();
+                    std::shared_ptr<ColumnBatch> column_batch_max = current_batch[projected_index];
+                    float max_value = column_batch_max->getDouble(0);
+                    for (size_t j = 1; j < num_rows_max; j++)
+                    {
+                        max_value = std::max(max_value, column_batch_max->getDouble(j));
+                    }
+                    std::cout << "Max of column " << column_names[i] << ": " << max_value << std::endl;
+                    break;
+                }
+                case ColumnType::DATE:
+                {
+                    size_t projected_index = table->getColumnIndexProjected(column_names[i]); 
+                    size_t num_rows_max_date = current_batch[projected_index]->getNumRows();
+                    std::shared_ptr<ColumnBatch> column_batch_max_date = current_batch[projected_index];
+                    int64_t max_value_date = column_batch_max_date->getDateAsInt64(0);
+                    for (size_t j = 1; j < num_rows_max_date; j++)
+                    {
+                        max_value_date = std::max(max_value_date, column_batch_max_date->getDateAsInt64(j));
+                    }
+                    std::cout << "Max of column " << column_names[i] << ": " << max_value_date << std::endl;
+                    break;
+                }
+                default:
+                    std::cout << "Unsupported column type for MAX: " << column_names[i] << std::endl;
+                    break;
+                }
+                break;
+            }
+            case AggregateFunctionType::MIN:
+            {
+                switch (table->getColumnType(column_names[i]))
+                {
+                case ColumnType::FLOAT:
+                {
+                    size_t projected_index = table->getColumnIndexProjected(column_names[i]);
+                    size_t num_rows_min = current_batch[projected_index]->getNumRows();
+                    std::shared_ptr<ColumnBatch> column_batch_min = current_batch[projected_index];
+                    float min_value = column_batch_min->getDouble(0);
+                    for (size_t j = 1; j < num_rows_min; j++)
+                    {
+                        min_value = std::min(min_value, column_batch_min->getDouble(j));
+                    }
+                    std::cout << "Min of column " << column_names[i] << ": " << min_value << std::endl;
+                    break;
+                }
+                case ColumnType::DATE:
+                {
+                    size_t projected_index = table->getColumnIndexProjected(column_names[i]);
+                    size_t num_rows_min_date = current_batch[projected_index]->getNumRows();
+                    std::shared_ptr<ColumnBatch> column_batch_min_date = current_batch[projected_index];
+                    int64_t min_value_date = column_batch_min_date->getDateAsInt64(0);
+                    for (size_t j = 1; j < num_rows_min_date; j++)
+                    {
+                        min_value_date = std::min(min_value_date, column_batch_min_date->getDateAsInt64(j));
+                    }
+                    std::cout << "Min of column " << column_names[i] << ": " << min_value_date << std::endl;
+                    break;
+                }
+                default:
+                    std::cout << "Unsupported column type for MIN: " << column_names[i] << std::endl;
+                    break;
+                }
+                break;
+            }
+            default:
+                std::cout << "Unsupported aggregate function: " << aggregateFunctionTypeToString(aggregate_functions[i]) << std::endl;
+                break;
+            }
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        total_time += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    }
+    std::cout << "Total time taken by CPU aggregate: " << total_time << " milliseconds" << std::endl;
+    std::cout << "================" << std::endl;
+}

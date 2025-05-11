@@ -495,10 +495,6 @@ size_t Table::getCurrentBatchSize() const
 // Column access by name
 ColumnBatch *Table::getColumnBatch(const std::string &column_name)
 {
-    std::cout << "Column dasdasdasname: " << column_name << std::endl;
-    std::cout << &column_map << std::endl;
-
-    std::cout << "Column map size: " << column_map.size() << std::endl;
     auto it = column_map.find(column_name);
     if (it == column_map.end())
     {

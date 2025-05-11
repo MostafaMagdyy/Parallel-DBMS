@@ -439,7 +439,6 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
         order->orders[0].type == duckdb::OrderType::DESCENDING ? table->setIsDescending(true) : table->setIsDescending(false);
         return table;
     }
-
     std::cout << "1111111111" << std::endl;
     std::vector<size_t> projected_column_indices = table->getProjectedColumnIndices();
     for (size_t i = 0; i < projected_column_indices.size(); i++)
@@ -539,7 +538,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
     std::cout << "total time taken by order by: " << duration.count() * 1000 << " ms" << std::endl;
-    result_table->setIsResultTable(true);
+    // result_table->setIsResultTable(true);
     return result_table;
 }
 
@@ -574,6 +573,9 @@ std::shared_ptr<Table> aggregate(DuckDBManager &manager, std::shared_ptr<Table> 
     {
         std::cout << "Column name: " << col.name << std::endl;
     }
+    // aggregateCPU(table, aggregate_functions, column_names);
+    // return table;
+
     std::vector<void *> results = aggregate(table, aggregate_functions, column_names);
     std::vector<ColumnMetadata> result_columns;
     std::vector<std::string> result_column_names;
