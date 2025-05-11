@@ -80,9 +80,14 @@ int64_t Table::parseDate(const std::string &dateStr) const
                              " (expected format: yyyy-MM-dd or yyyy-MM-dd HH:mm:ss)");
 }
 
-bool Table::readNextBatch()
+bool Table::readNextBatch(int64_t num_rows)
 {
-    std::cout << "reading next batch from " << name << std::endl;
+    if (num_rows == -1)
+    {
+        num_rows = batch_size;
+    }
+
+    // std::cout << "reading next batch from " << name << std::endl;
     
     if (is_result_table)
     {
@@ -103,12 +108,12 @@ bool Table::readNextBatch()
         current_batch.clear();
         size_t memory_before = getCurrentRSS();
         auto total_start_time = std::chrono::high_resolution_clock::now();
-        std::cout << "Memory usage before batch loading: " << formatMemorySize(memory_before) << std::endl;
+        // std::cout << "Memory usage before batch loading: " << formatMemorySize(memory_before) << std::endl;
         current_batch.resize(original_to_projected_map.size());
         for (const auto &[orgId, Id] : original_to_projected_map)
         {
-            std::cout << "Column Batch Type" << columns[orgId].name << std::endl;
-            current_batch[Id] = std::make_shared<ColumnBatch>(columns[orgId].type, batch_size);
+            // std::cout << "Column Batch Type" << columns[orgId].name << std::endl;
+            current_batch[Id] = std::make_shared<ColumnBatch>(columns[orgId].type, num_rows);
         }
         std::ifstream file(file_path);
         if (!file.is_open())
@@ -124,11 +129,11 @@ bool Table::readNextBatch()
             std::string header;
             std::getline(file, header);
             last_file_pos = file.tellg();
-            std::cout << "Skipped header row for table: " << name << std::endl;
+            // std::cout << "Skipped header row for table: " << name << std::endl;
         }
         else
         {
-            std::cout << "Seeking to saved file position for row " << total_count << std::endl;
+            // std::cout << "Seeking to saved file position for row " << total_count << std::endl;
             file.seekg(last_file_pos);
             if (!file.good())
             {
@@ -139,13 +144,13 @@ bool Table::readNextBatch()
         }
         if (filters.empty())
         {
-            std::cout << "No filters applied for table: " << name << std::endl;
+            // std::cout << "No filters applied for table: " << name << std::endl;
         }
 
         std::string line;
         size_t rows_read = 0;
-        std::cout << "Reading batch of " << batch_size << " rows" << std::endl;
-        while (rows_read < batch_size && std::getline(file, line))
+        // std::cout << "Reading batch of " << num_rows << " rows" << std::endl;
+        while (rows_read < num_rows && std::getline(file, line))
         {
             if (line.empty())
             {
@@ -231,11 +236,11 @@ bool Table::readNextBatch()
         // Debug output
         // This is the rows returned from this batch (ideally should be batch size)
         // Should add another var to track total rows read(during to applying filters)
-        std::cout << "Read " << rows_read << " rows from file" << std::endl;
-        std::cout << "Has more data: " << has_more_data << std::endl;
+        // std::cout << "Read " << rows_read << " rows from file" << std::endl;
+        // std::cout << "Has more data: " << has_more_data << std::endl;
         std::chrono::duration<float> total_duration = total_end_time - total_start_time;
-        std::cout << "Batch read time: " << total_duration.count() << " seconds" << std::endl;
-        std::cout << "Memory increase for this batch: " << formatMemorySize(memory_used) << std::endl;
+        // std::cout << "Batch read time: " << total_duration.count() << " seconds" << std::endl;
+        // std::cout << "Memory increase for this batch: " << formatMemorySize(memory_used) << std::endl;
         return rows_read > 0;
     }
     catch (std::exception &e)
@@ -619,7 +624,7 @@ void Table::setSaveFilePath(const std::string &file_path)
 
 void Table::addResultBatch(void **result_table_batches, size_t num_rows)
 {
-    std::cout << "Adding result batch to table: " << name << std::endl;
+    // std::cout << "Adding result batch to table: " << name << std::endl;
     if (current_batch.empty())
     {
         std::cout << "number of columns: " << columns.size() << std::endl;
@@ -632,7 +637,7 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
     }
 
     // TODO: copy the whole vector using memcpy and pointers instead of doing a for loop over rows
-    std::cout << "Current batch size: " << num_rows << std::endl;
+    // std::cout << "Current batch size: " << num_rows << std::endl;
     for (size_t column_idx = 0; column_idx < current_batch.size(); column_idx++)
     {
         for (size_t row_idx = 0; row_idx < num_rows; row_idx++)
@@ -663,8 +668,8 @@ void Table::addResultBatch(void **result_table_batches, size_t num_rows)
             }
         }
     }
-    std::cout << "Current batch size after adding result batch: " << current_batch[0]->size() << std::endl;
-    std::cout << "Added result batch to table: " << name << std::endl;
+    // std::cout << "Current batch size after adding result batch: " << current_batch[0]->size() << std::endl;
+    // std::cout << "Added result batch to table: " << name << std::endl;
     this->has_more_data = true;
 
     // for (size_t i = 0; i < current_batch.size(); i++)

@@ -405,31 +405,29 @@ std::shared_ptr<Table> projection(DuckDBManager &manager, std::shared_ptr<Table>
 std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> table, duckdb::PhysicalOperator *op, std::string indent)
 {
     // TODO implement order by
-    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     auto order = reinterpret_cast<duckdb::PhysicalOrder *>(op);
     std::cout << indent << "Order By: ";
     std::cout << "order->orders[0].expression->ToString(): " << order->orders[0].expression->ToString() << std::endl;
     std::string column_name = order->orders[0].expression->ToString();
-    
+
     // Extract just the column name after the last dot
     size_t last_dot = column_name.find_last_of('.');
     if (last_dot != std::string::npos)
     {
         column_name = column_name.substr(last_dot + 1);
     }
-    
+
     std::cout << "does it have quotes: " << (column_name[0] == '"' && column_name[column_name.size() - 1] == '"') << std::endl;
     std::cout << column_name[0] << ' ' << column_name[column_name.size() - 1] << std::endl;
     if (column_name[0] == '"' && column_name[column_name.size() - 1] == '"')
         column_name = column_name.substr(1, column_name.size() - 2);
-    
+
     if (column_name[0] == '#')
     {
         int colIdx = std::stoi(column_name.substr(1));
         column_name = table->getColumnName(table->getProjectedColumnIndices()[colIdx]);
     }
 
-    
     std::cout << "column_name: " << column_name << std::endl;
     std::cout << "table->getColumnType(column_name): " << columnTypeToString(table->getColumnType(column_name)) << std::endl;
     if (table->getColumnType(column_name) == ColumnType::STRING)
@@ -452,6 +450,7 @@ std::shared_ptr<Table> order_by(DuckDBManager &manager, std::shared_ptr<Table> t
     std::cout << "colIdx: " << colIdx << std::endl;
     std::cout << "2222222222" << std::endl;
     table->readNextBatch();
+    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     std::cout << "3333333333" << std::endl;
     auto current_batch = table->getCurrentBatch();
     std::cout << "current batch size: " << current_batch[0]->size() << std::endl;

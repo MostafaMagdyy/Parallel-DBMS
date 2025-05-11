@@ -44,7 +44,7 @@ DeviceStruct *DeviceStruct::createStructWithoutCopy(ColumnType type, size_t numR
 }
 
 void DeviceStruct::deleteStruct(DeviceStruct &deviceStruct){
-    cudaFree(deviceStruct.device_ptr);
+    // cudaFree(deviceStruct.device_ptr);
     deviceStruct.device_ptr = nullptr;
 }
 

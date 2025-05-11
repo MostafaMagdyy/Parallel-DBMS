@@ -147,13 +147,13 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
     int timeSum = 0;
     while (left_table->hasMoreData())
     {
-        std::cout << "111111111111" << std::endl;
+        // std::cout << "111111111111" << std::endl;
         left_table->readNextBatch();
         std::cout << "left table size: " << left_table->getCurrentBatchSize() << std::endl;
         std::vector<std::shared_ptr<ColumnBatch>> left_batches = left_table->getCurrentBatch();
         while (right_table->hasMoreData())
         {
-            std::cout << "222222222222" << std::endl;
+            // std::cout << "222222222222" << std::endl;
             right_table->readNextBatch();
             std::cout << "right table size: " << right_table->getCurrentBatchSize() << std::endl;
             std::vector<std::shared_ptr<ColumnBatch>> right_batches = right_table->getCurrentBatch();
@@ -161,7 +161,7 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
             auto start = std::chrono::high_resolution_clock::now();
             for (size_t i = 0; i < left_table->getCurrentBatchSize(); i++)
             {
-                std::cout << "333333333333" << std::endl;
+                // std::cout << "333333333333" << std::endl;
                 for (size_t j = 0; j < right_table->getCurrentBatchSize(); j++)
                 {
                     bool match = true;
@@ -174,11 +174,11 @@ void joinTablesCPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                     // now we have the bool array, we need to init void* for the result tables
                 }
             }
-            std::cout << "444444444444" << std::endl;
+            // std::cout << "444444444444" << std::endl;
             void **result_table_batches = allocateResultTableBatches(matches, left_batches, right_batches);
-            std::cout << "5555555555555" << std::endl;
+            // std::cout << "5555555555555" << std::endl;
             size_t num_rows = addBatchColumns(result_table_batches, matches, left_batches, right_batches);
-            std::cout << "6666666666666" << std::endl;
+            // std::cout << "6666666666666" << std::endl;
             std::cout << "num rows matched: " << num_rows << std::endl;
             // now the void** should be the same as the GPU result that we get
             // we need to add the result to the result table

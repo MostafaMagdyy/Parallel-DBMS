@@ -21,8 +21,6 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
         cudaMemcpyFromSymbol(&global_row_count, d_global_row_count, sizeof(unsigned int));
         std::cout << "global row count: " << global_row_count << std::endl;
 
-        std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
-
         while (left_table->hasMoreData())
         {
             left_table->readNextBatch();
@@ -36,7 +34,7 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
 
             while (right_table->hasMoreData())
             {
-                right_table->readNextBatch();
+                right_table->readNextBatch(500);
                 std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
                 std::vector<DeviceStruct> h_input2 = right_table->transferBatchToGPU();
                 std::vector<DeviceStruct> h_output(h_input1.size() + h_input2.size());
@@ -50,8 +48,10 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                 int *h_offsets = (int *)malloc(sizeof(int) * h_input2.size());
                 h_offsets[0] = 0;
                 for (size_t i = 1; i < h_input2.size(); i++)
-                    h_offsets[i] = h_offsets[i - 1] + h_input2[i - 1].numRows * h_input2[i - 1].rowSize;
-
+                {
+                    int offset = ((h_input2[i - 1].numRows * h_input2[i - 1].rowSize) + 7) & ~7;
+                    h_offsets[i] = h_offsets[i - 1] + offset;
+                }
                 // GPU memory allocation
                 DeviceStruct *d_input1;
                 DeviceStruct *d_input2;
@@ -74,14 +74,17 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                 // TODO: calculate the shared memory size
                 size_t shared_memory_size = h_offsets[h_input2.size() - 1] +
                                             h_input2[h_input2.size() - 1].rowSize * h_input2[h_input2.size() - 1].numRows;
-                std::cout << "shared memory size: " << shared_memory_size << std::endl;
+                // std::cout << "shared memory size: " << shared_memory_size << std::endl;
                 size_t n_cols_out = h_input1.size() + h_input2.size();
-
+                // printf("nrows 1 %d\n", (int)h_input1[0].numRows);
+                // printf("nrows 2 %d\n", (int)h_input2[0].numRows);
+                // std::cout << "Table 2 (" << right_table->getName() << ") has " << (int)h_input2[0].numRows << " rows" << std::endl;
+                // printf("hello world");
                 int actual_rows_out = nested_loop_join(d_input1, d_input2, d_join_condition, h_input1[0].numRows, h_input2[0].numRows,
                                                        h_input1.size(), h_input2.size(), join_conditions.size(),
                                                        d_output, shared_memory_size, d_offsets, n_cols_out);
 
-                std::cout << "number of matching rows: " << actual_rows_out << std::endl;
+                // std::cout << "number of matching rows: " << actual_rows_out << std::endl;
                 DeviceStruct *h_out_temp = new DeviceStruct[n_cols_out];
                 cudaMemcpy(h_out_temp, d_output, sizeof(DeviceStruct) * n_cols_out, cudaMemcpyDeviceToHost);
                 void **result_table_batches = new void *[n_cols_out];
@@ -129,7 +132,7 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                     }
                 }
 
-                std::cout << "num rows matched: " << actual_rows_out << std::endl;
+                // std::cout << "num rows matched: " << actual_rows_out << std::endl;
                 result_table->addResultBatch(result_table_batches, actual_rows_out);
                 delete[] h_out_temp;
 
@@ -148,7 +151,7 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
                 cudaMemcpyToSymbol(d_global_row_count, &zero, sizeof(unsigned int));
 
                 std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-                timeSum += std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();    
+                timeSum += std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
             }
 
             end_time = std::chrono::high_resolution_clock::now();
@@ -163,6 +166,6 @@ void joinTablesGPU(std::shared_ptr<Table> left_table, std::shared_ptr<Table> rig
     {
         std::cerr << e.what() << std::endl;
     }
-   
+
     std::cout << "time taken by join duration: " << timeSum << " milliseconds" << std::endl;
-} 
+}

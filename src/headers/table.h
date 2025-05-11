@@ -57,7 +57,7 @@ private:
     void setIsResultTable(bool is_result_table) { this->is_result_table = is_result_table; }
     bool getIsResultTable() const { return is_result_table; }
     void setFilePath(const std::string &file_path) { this->file_path = file_path; }
-    bool readNextBatch();
+    bool readNextBatch(int64_t num_rows = -1);
     void saveCurrentBatch();
     void printCurrentBatch(size_t max_rows = 10,size_t max_string_length = 30);
     std::vector<std::string> getProjectedColumnNames() const;

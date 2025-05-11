@@ -48,6 +48,7 @@ __device__ bool evaluate_single_condition(
     {
         float val1 = *static_cast<const float *>(pVal1);
         float val2 = *static_cast<const float *>(pVal2);
+        // printf("val1: %f, val2: %f\n", val1, val2);
         switch (op)
         {
         case ComparisonOperator::EQUALS:
@@ -165,10 +166,11 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
     extern __shared__ uint8_t shmem[];
     int thid = threadIdx.x;
     int gthid = blockIdx.x * blockDim.x + thid;
-    if (thid == 0 && blockIdx.x == 0)
+    if (thid < 50 && blockIdx.x == 0)
     {
-        printf("priting from thread %d\n", thid);
+        // printf("priting from thread %d\n", thid);
     }
+
     // if (thid == 0 && blockIdx.x == 0)
     // {
     //     for (int i = 0; i < nrows2; i++)
@@ -191,10 +193,7 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
     //         printf("\n");
     //     }
     // }
-    if (gthid >= nrows1)
-    {
-        return;
-    }
+
     for (size_t i = 0; i < nCols2; i++)
     {
         for (size_t j = 0; j < nrows2; j += blockDim.x)
@@ -208,6 +207,13 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
                 // and shmem is also something like char* or void*
 
             case ColumnType::DATE:
+                // printf("indx %d\n", (int)(thid + j + d_offsets[i] / sizeof(float)));
+                // printf("offset %d\n", (int)(d_offsets[i] / sizeof(float)));
+                // printf("thid %d\n", (int)thid);
+                // printf("j %d\n", (int)j);
+                // printf("i %d\n", (int)i);
+                // printf("value %f\n", ((const float *)d_table2[i].device_ptr)[thid + j]);
+
                 // LHS: Treat shmem as base, add element offset (thid + j + byte_offset_to_col_start / element_size)
                 // RHS: Treat d_table2[i].device_ptr as base of int64_t array, get (thid + j)-th element
                 *((int64_t *)(shmem) + thid + j + d_offsets[i] / sizeof(int64_t)) =
@@ -217,6 +223,12 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
             case ColumnType::FLOAT:
                 // LHS: Treat shmem as base, add element offset (thid + j + byte_offset_to_col_start / element_size)
                 // RHS: Treat d_table2[i].device_ptr as base of float array, get (thid + j)-th element
+                // printf("indx %d\n", (int)(thid + j + d_offsets[i] / sizeof(float)));
+                // printf("offset %d\n", (int)(d_offsets[i] / sizeof(float)));
+                // printf("thid %d\n", (int)thid);
+                // printf("j %d\n", (int)j);
+                // printf("i %d\n", (int)i);
+                // printf("value %f\n", ((const float *)d_table2[i].device_ptr)[thid + j]);
                 *((float *)(shmem) + thid + j + d_offsets[i] / sizeof(float)) =
                     ((const float *)d_table2[i].device_ptr)[thid + j];
                 break;
@@ -230,6 +242,10 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
                 break;
             }
         }
+    }
+    if (gthid >= nrows1)
+    {
+        return;
     }
     __syncthreads();
     // if (thid == 0 && blockIdx.x == 0)
@@ -254,6 +270,7 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
     //         printf("\n");
     //     }
     // }
+
     for (size_t i = 0; i < nrows2; i++)
     {
 
@@ -282,6 +299,12 @@ __global__ void nested_loop_join_kernel(DeviceStruct *d_table1, DeviceStruct *d_
                 break;
 
             case ColumnType::FLOAT:
+
+                // printf("nrows 2 %d\n", (int)i);
+                // printf("Addres %lld\n", (long long)(static_cast<const float *>(
+                //                                         static_cast<const void *>(shmem)) +
+                //                                     i +
+                //                                     (d_offsets[d_conditions[z].rightColumnIdx] / sizeof(float))));
                 is_match = is_match &&
                            evaluate_single_condition(
                                // Corrected: Cast device_ptr to const float* then add element offset gthid
@@ -321,15 +344,33 @@ int nested_loop_join(DeviceStruct *d_table1, DeviceStruct *d_table2,
     cudaMemcpyToSymbol(d_global_row_count, &zero, sizeof(unsigned int));
 
     int nblocks = (nrows1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    std::cout << "calling Kernel" << std::endl;
+    // static int launch_count = 0;
+    // printf("Launch #%d\n", ++launch_count);
+    // std::cout << "calling Kernel" << std::endl;
+    // printf("Block size: %d\n", BLOCK_SIZE);
+    // printf("Grid size: %d\n", nblocks);
+    // printf("Shared memory: %d\n", shared_memory_size);
+    // printf("d_table1: %p\n", (void *)d_table1);
+    // printf("d_table2: %p\n", (void *)d_table2);
+    // printf("d_conditions: %p\n", (void *)d_conditions);
+    // printf("result: %p\n", (void *)result);
+    // printf("d_offsets: %p\n", (void *)d_offsets);
     nested_loop_join_kernel<<<nblocks, BLOCK_SIZE, shared_memory_size>>>(
         d_table1, d_table2, d_conditions, nrows1, nrows2, nCols1, nCols2,
         nConditions, result, d_offsets, n_cols_output);
-
+    // cudaDeviceSynchronize();
+    // printf("kernel 1 finished\n");
     cudaError_t cudaError = cudaGetLastError();
     if (cudaError != cudaSuccess)
     {
         printf("Kernel launch failed with error \"%s\"\n", cudaGetErrorString(cudaError));
+        printf("shared memory size: %d\n", shared_memory_size);
+        printf("nrows1: %d\n", nrows1);
+        printf("nrows2: %d\n", nrows2);
+        printf("nCols1: %d\n", nCols1);
+        printf("nCols2: %d\n", nCols2);
+        printf("nConditions: %d\n", nConditions);
+        printf("n_cols_output: %d\n", n_cols_output);
     }
 
     // Get the result
