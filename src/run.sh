@@ -29,7 +29,7 @@ nvcc -std=c++17 -arch=sm_75 -dc -o Join/join.o \
   -rdc=true
 
 # Then compile C++ files and link everything
-nvcc -std=c++17 -arch=sm_75 -o sql \
+nvcc -std=c++17 -arch=sm_75 -o sql_dbms \
   RadixSort/scan.o \
   RadixSort/sort.o \
   cuda/aggregate.o \
@@ -44,7 +44,7 @@ nvcc -std=c++17 -arch=sm_75 -o sql \
   operators/aggregate.cpp \
   operators/cpu_sort.cpp \
   operators/join.cpp \
-  sql_parser.cpp \
+  main.cpp \
   -I$DUCKDB_INCLUDE -I. \
   -L$DUCKDB_LIB -lduckdb -lcudart \
   -Xlinker -rpath=$DUCKDB_LIB \

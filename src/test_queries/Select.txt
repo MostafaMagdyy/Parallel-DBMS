@@ -1,1 +1,0 @@
-select avg(employee_id) from employees
